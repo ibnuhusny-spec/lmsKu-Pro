@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Arabic Typesetting';
+  src: local('Arabic Typesetting');
+}
+
+.teks-arab-besar {
+  font-family: 'Arabic Typesetting', serif;
+  font-size: 2.5rem;
+  line-height: 2.2;
+}
