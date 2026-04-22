@@ -14,8 +14,8 @@ function App() {
   const [googleUser, setGoogleUser] = useState(null);
   const [bankSoal, setBankSoal] = useState([]);
   const [setoran, setSetoran] = useState([]);
-  const [daftarUjian, setDaftarUjian] = useState([]); // 👈 DATABASE BARU UNTUK JADWAL UJIAN
-  const [ujianAktif, setUjianAktif] = useState(null); // 👈 Menyimpan ujian mana yang sedang dikerjakan
+  const [daftarUjian, setDaftarUjian] = useState([]); 
+  const [ujianAktif, setUjianAktif] = useState(null); 
   const [pengaturan, setPengaturan] = useState({ daftarHalaqah: [], daftarGuru: [] });
 
   const SUPER_ADMIN = 'ibnuhusny@gmail.com';
@@ -42,13 +42,36 @@ function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setPengaturan({ 
+           judul: data.judul || 'LMSKU PRO', 
+           durasi: data.durasi || 5, 
            daftarHalaqah: data.daftarHalaqah || [],
            daftarGuru: data.daftarGuru || []
         });
       }
     });
 
-    const unsubAuth = auth.onAuthStateChanged((u) => setGoogleUser(u));
+    // 👈 LOGIKA BARU: Mengecek apakah murid sudah pernah login dan masuk kelas
+    const unsubAuth = auth.onAuthStateChanged((u) => {
+       setGoogleUser(u);
+       if (u) {
+          const sesiTersimpan = localStorage.getItem('lmsku_sesi_siswa');
+          if (sesiTersimpan) {
+             const dataSesi = JSON.parse(sesiTersimpan);
+             // Pastikan email di memori sama dengan email Google yang aktif
+             if (dataSesi.email === u.email) {
+                setUser(dataSesi);
+                setHalaman('lobi'); // Langsung lemparkan ke Lobi Kelas!
+             } else {
+                localStorage.removeItem('lmsku_sesi_siswa');
+             }
+          }
+       } else {
+          // Jika logout dari Google, bersihkan memori kelas
+          localStorage.removeItem('lmsku_sesi_siswa');
+          setUser(null);
+       }
+    });
+
     return () => { unsubSoal(); unsubSetoran(); unsubUjian(); unsubPengaturan(); unsubAuth(); };
   }, []);
 
@@ -78,7 +101,18 @@ function App() {
      } catch (error) { alert("Gagal memverifikasi Admin: " + error.message); }
   };
 
-  const handleLogoutGmail = () => { signOut(auth); setGoogleUser(null); setHalaman('splash'); };
+  const handleLogoutGmail = () => { 
+     localStorage.removeItem('lmsku_sesi_siswa'); // Bersihkan memori saat ganti akun
+     signOut(auth); 
+     setGoogleUser(null); 
+     setHalaman('splash'); 
+  };
+
+  const handleKeluarKelas = () => {
+     localStorage.removeItem('lmsku_sesi_siswa'); // Bersihkan memori agar bisa masuk kelas lain
+     setUser(null);
+     setHalaman('login_siswa');
+  };
 
   const handleMasukRuangan = (e) => {
     e.preventDefault();
@@ -89,13 +123,16 @@ function App() {
     const halaqahDitemukan = pengaturan.daftarHalaqah.find(h => h.kode === kodeMasuk);
     if (!halaqahDitemukan) return alert("❌ Kode Kelas salah!");
     
-    setUser({ 
+    const sesiBaru = { 
        nama: data.get('nama'), 
        email: googleUser.email, 
        kodeSiswa: data.get('kodeSiswa'), 
        halaqah: halaqahDitemukan.nama,
        kodeHalaqah: halaqahDitemukan.kode
-    });
+    };
+
+    setUser(sesiBaru);
+    localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(sesiBaru)); // 👈 SIMPAN KE MEMORI HP MURID
     setHalaman('lobi');
   };
 
@@ -174,7 +211,7 @@ function App() {
         )}
 
         {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
-        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={() => setHalaman('splash')} />}
+        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} />}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
       </div>
     </div>
