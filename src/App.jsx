@@ -13,7 +13,10 @@ function App() {
   const [googleUser, setGoogleUser] = useState(null);
   const [bankSoal, setBankSoal] = useState([]);
   const [setoran, setSetoran] = useState([]);
-  const [pengaturan, setPengaturan] = useState({ judul: 'LMSKU PRO', durasi: 5, daftarHalaqah: [] });
+  const [pengaturan, setPengaturan] = useState({ judul: 'LMSKU PRO', durasi: 5, daftarHalaqah: [], daftarGuru: [] });
+
+  // 👑 PENGUASA TERTINGGI (SUPER ADMIN)
+  const SUPER_ADMIN = 'ibnuhusny@gmail.com';
 
   useEffect(() => {
     const unsubSoal = onSnapshot(collection(db, "soal"), (snap) => {
@@ -31,7 +34,12 @@ function App() {
     const unsubPengaturan = onSnapshot(doc(db, "sistem", "pengaturan"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setPengaturan({ judul: data.judul || 'LMSKU PRO', durasi: data.durasi || 5, daftarHalaqah: data.daftarHalaqah || [] });
+        setPengaturan({ 
+           judul: data.judul || 'LMSKU PRO', 
+           durasi: data.durasi || 5, 
+           daftarHalaqah: data.daftarHalaqah || [],
+           daftarGuru: data.daftarGuru || [] // 👈 Database Daftar Guru ditarik di sini
+        });
       }
     });
 
@@ -39,16 +47,36 @@ function App() {
     return () => { unsubSoal(); unsubSetoran(); unsubPengaturan(); unsubAuth(); };
   }, []);
 
-  const handleLoginGmail = async (targetHalaman) => {
+  const handleLoginSiswa = async () => {
     try { 
        await signInWithPopup(auth, googleProvider); 
-       setHalaman(targetHalaman); // Otomatis arahkan ke admin atau siswa setelah sukses
+       setHalaman('login_siswa'); 
     } catch (error) { alert("Gagal Login: " + error.message); }
   };
 
-  const handleMasukAdmin = () => {
-     if (googleUser) setHalaman('admin');
-     else handleLoginGmail('admin');
+  const handleMasukAdmin = async () => {
+     try {
+        let currentUser = googleUser;
+        if (!currentUser) {
+           const result = await signInWithPopup(auth, googleProvider);
+           currentUser = result.user;
+        }
+
+        const emailLogin = currentUser.email.toLowerCase();
+        const isSuperAdmin = emailLogin === SUPER_ADMIN;
+        const isGuruTerdaftar = pengaturan.daftarGuru.includes(emailLogin);
+
+        // Hanya Super Admin ATAU Guru Terdaftar yang boleh masuk
+        if (isSuperAdmin || isGuruTerdaftar) {
+           setHalaman('admin'); 
+        } else {
+           alert(`⛔ AKSES DITOLAK!\n\nEmail (${currentUser.email}) belum didaftarkan oleh Super Admin.`);
+           signOut(auth);
+           setGoogleUser(null);
+        }
+     } catch (error) {
+        alert("Gagal memverifikasi Admin: " + error.message);
+     }
   };
 
   const handleLogoutGmail = () => { signOut(auth); setGoogleUser(null); setHalaman('splash'); };
@@ -67,7 +95,7 @@ function App() {
        email: googleUser.email, 
        kodeSiswa: data.get('kodeSiswa'), 
        halaqah: halaqahDitemukan.nama,
-       kodeHalaqah: halaqahDitemukan.kode // 👈 Menyimpan kode kelas untuk filter soal murid
+       kodeHalaqah: halaqahDitemukan.kode
     });
     setHalaman('ujian');
   };
@@ -93,7 +121,7 @@ function App() {
              </div>
 
              <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-                <button onClick={() => googleUser ? setHalaman('login_siswa') : handleLoginGmail('login_siswa')} className="group relative p-1 rounded-3xl bg-gradient-to-b from-indigo-500 to-indigo-700 hover:to-indigo-600 transition-all shadow-[0_0_40px_rgba(99,102,241,0.4)] hover:-translate-y-2">
+                <button onClick={() => googleUser ? setHalaman('login_siswa') : handleLoginSiswa()} className="group relative p-1 rounded-3xl bg-gradient-to-b from-indigo-500 to-indigo-700 hover:to-indigo-600 transition-all shadow-[0_0_40px_rgba(99,102,241,0.4)] hover:-translate-y-2">
                    <div className="bg-slate-900/90 backdrop-blur-sm h-full w-full rounded-[1.4rem] p-8 flex flex-col items-center justify-center border border-indigo-500/30 group-hover:bg-slate-900/70 transition-all">
                       <span className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-500">🎓</span>
                       <h2 className="text-2xl font-black text-white mb-2">Portal Siswa</h2>
@@ -105,7 +133,7 @@ function App() {
                    <div className="bg-slate-900/90 backdrop-blur-sm h-full w-full rounded-[1.4rem] p-8 flex flex-col items-center justify-center border border-emerald-500/30 group-hover:bg-slate-900/70 transition-all">
                       <span className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-500">👑</span>
                       <h2 className="text-2xl font-black text-white mb-2">Admin Guru</h2>
-                      <p className="text-emerald-200 text-sm">Masuk dengan Email Guru Anda</p>
+                      <p className="text-emerald-200 text-sm">Masuk dengan Email Resmi</p>
                    </div>
                 </button>
              </div>
@@ -132,6 +160,13 @@ function App() {
               </div>
 
               <form onSubmit={handleMasukRuangan} className="space-y-4">
+                 <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800 mb-4">
+                    <div className="truncate pr-2">
+                       <p className="text-[10px] font-black text-indigo-400 uppercase">Akun Peserta:</p>
+                       <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300 truncate">{googleUser.email}</p>
+                    </div>
+                 </div>
+
                  <input name="nama" defaultValue={googleUser.displayName} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
                  <input name="kodeSiswa" placeholder="No. Kode / ID Khusus Siswa" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
                  
@@ -148,8 +183,7 @@ function App() {
           </div>
         )}
 
-        {/* MENGIRIM EMAIL GURU KE PANEL ADMIN AGAR TERISOLASI */}
-        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} />}
+        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} pengaturan={pengaturan} keLogin={() => setHalaman('splash')} />}
       </div>
     </div>
