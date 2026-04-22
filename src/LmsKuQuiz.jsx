@@ -18,7 +18,8 @@ const formatWaktuTampil = (detik) => {
   return `${Math.floor(detik / 60)}m ${detik % 60}s`;
 };
 
-const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
+// 👈 MENERIMA PROPS "ujianAktif" DARI LOBI
+const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const [isMulai, setIsMulai] = useState(false);
   const [waktuMulai, setWaktuMulai] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -31,10 +32,11 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // 👈 FITUR ISOLASI SOAL BAGI MURID
-  const soalUjianIni = bankSoal.filter(s => s.kodeHalaqah === user.kodeHalaqah);
+  // 👈 HANYA AMBIL SOAL YANG ID UJIAN-NYA SAMA
+  const soalUjianIni = bankSoal.filter(s => s.idUjian === ujianAktif.docId);
 
-  const durasiMaksimal = pengaturan.durasi * 60;
+  // 👈 DURASI DIAMBIL DARI JADWAL UJIAN
+  const durasiMaksimal = ujianAktif.durasi * 60;
   const [timeLeft, setTimeLeft] = useState(durasiMaksimal);
   const hasSubmitted = useRef(false);
 
@@ -109,7 +111,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
       setIsRecording(true);
     } catch (err) { alert("Akses Mikrofon ditolak komputer/HP Anda."); }
   };
-  
   const stopRecordingUraian = () => { if (mediaRecorderRef.current) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
 
   const submitTugas = async (isAutoSubmit = false) => {
@@ -148,12 +149,13 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
     try {
       await addDoc(collection(db, "setoran"), {
         ...user, 
+        idUjian: ujianAktif.docId, // 👈 Identitas Ujian Tersimpan
         nilaiSistem: nilaiFinal, 
         waktuPengerjaan: durasiPengerjaan,
         jawaban: jawabanPeserta, 
         tanggal: tanggalFormatRapi,
         tanggalReal: new Date().toISOString(), 
-        kuisJudul: pengaturan.judul
+        kuisJudul: ujianAktif.judul // 👈 Judul Ujian Tersimpan
       });
       setIsSelesai(true);
     } catch (e) { 
@@ -163,14 +165,19 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
     setIsSubmitting(false);
   };
 
-  if (!soalUjianIni || soalUjianIni.length === 0) return (<div className="flex justify-center min-h-screen items-center flex-col gap-4"><h2 className="text-xl font-bold dark:text-white">Belum Ada Soal di Kelas Ini</h2><button onClick={keLogin} className="text-red-500 font-bold underline">← Keluar</button></div>);
+  if (!soalUjianIni || soalUjianIni.length === 0) return (
+     <div className="flex justify-center min-h-screen items-center flex-col gap-4 bg-slate-50 dark:bg-slate-900">
+        <h2 className="text-xl font-bold dark:text-white">Guru belum memasukkan soal ke ujian ini.</h2>
+        <button onClick={keLobi} className="text-indigo-500 font-bold underline bg-indigo-50 px-4 py-2 rounded-xl">← Kembali ke Lobi</button>
+     </div>
+  );
   
   if (!isMulai) return (
-     <div className="flex justify-center min-h-screen items-center p-4">
+     <div className="flex justify-center min-h-screen items-center p-4 bg-slate-50 dark:bg-slate-900">
         <div className="w-full max-w-md bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border border-slate-100 dark:border-slate-700 transition-colors">
            <span className="text-5xl mb-4 block">⏱️</span>
-           <h1 className="text-3xl font-black mb-2 dark:text-white">{pengaturan.judul}</h1>
-           <p className="text-slate-500 dark:text-slate-400 font-bold mb-6">Waktu Ujian: {pengaturan.durasi} Menit</p>
+           <h1 className="text-3xl font-black mb-2 dark:text-white">{ujianAktif.judul}</h1>
+           <p className="text-slate-500 dark:text-slate-400 font-bold mb-6">Waktu Ujian: {ujianAktif.durasi} Menit</p>
            
            <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
               <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase mb-3 flex items-center gap-2"><span>⚠️</span> Tata Tertib Ujian:</p>
@@ -179,7 +186,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
                  <li>Bagi soal Audio, pastikan durasi rekaman singkat (10-15 detik).</li>
               </ul>
            </div>
-           
            <button onClick={mulaiUjian} className="w-full py-4 bg-emerald-500 text-white font-black text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all shadow-[0_10px_20px_rgba(16,185,129,0.3)]">🚀 SAYA SIAP, MULAI!</button>
         </div>
      </div>
@@ -191,13 +197,11 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-20 area-cetak bg-slate-50 dark:bg-slate-900">
-        
-        {/* DESAIN SERTIFIKAT MINI YANG AKAN TAMPIL SAAT DICETAK */}
         <div className="w-full max-w-md bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border-t-8 border-emerald-500 mb-6 transition-colors area-cetak">
           <div className="mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
              <span className="text-6xl mb-4 block">🎓</span>
              <h1 className="text-2xl font-black mb-1 dark:text-white">Bukti Selesai Ujian</h1>
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{pengaturan.judul}</p>
+             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{ujianAktif.judul}</p>
           </div>
 
           <div className="text-left space-y-3 mb-8">
@@ -224,7 +228,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
           </div>
         </div>
 
-        {/* TOMBOL INI AKAN HILANG SAAT KERTAS DICETAK */}
         <div className="w-full max-w-md space-y-3 no-print">
            <button onClick={() => window.print()} className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:translate-y-1 active:border-b-0 transition-all flex justify-center items-center gap-2">
               🖨️ Cetak / Download Bukti
@@ -233,7 +236,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
               ← Kembali ke Lobi Kelas
            </button>
         </div>
-
       </div>
     );
   }
@@ -249,7 +251,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
     <div className="max-w-3xl mx-auto p-4 md:p-8 font-sans">
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm mb-4 flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-colors">
         <div>
-           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{pengaturan.judul}</p>
+           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{ujianAktif.judul}</p>
            <p className="font-black text-slate-700 dark:text-white text-sm">{user.nama}</p>
            <p className="text-[10px] text-indigo-400 dark:text-indigo-300 font-bold truncate max-w-[150px]">{user.email}</p>
         </div>

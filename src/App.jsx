@@ -14,7 +14,9 @@ function App() {
   const [googleUser, setGoogleUser] = useState(null);
   const [bankSoal, setBankSoal] = useState([]);
   const [setoran, setSetoran] = useState([]);
-  const [pengaturan, setPengaturan] = useState({ judul: 'LMSKU PRO', durasi: 5, daftarHalaqah: [], daftarGuru: [] });
+  const [daftarUjian, setDaftarUjian] = useState([]); // 👈 DATABASE BARU UNTUK JADWAL UJIAN
+  const [ujianAktif, setUjianAktif] = useState(null); // 👈 Menyimpan ujian mana yang sedang dikerjakan
+  const [pengaturan, setPengaturan] = useState({ daftarHalaqah: [], daftarGuru: [] });
 
   const SUPER_ADMIN = 'ibnuhusny@gmail.com';
 
@@ -31,12 +33,15 @@ function App() {
       setSetoran(data);
     });
 
+    const unsubUjian = onSnapshot(collection(db, "ujian"), (snap) => {
+      let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+      setDaftarUjian(data);
+    });
+
     const unsubPengaturan = onSnapshot(doc(db, "sistem", "pengaturan"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setPengaturan({ 
-           judul: data.judul || 'LMSKU PRO', 
-           durasi: data.durasi || 5, 
            daftarHalaqah: data.daftarHalaqah || [],
            daftarGuru: data.daftarGuru || []
         });
@@ -44,7 +49,7 @@ function App() {
     });
 
     const unsubAuth = auth.onAuthStateChanged((u) => setGoogleUser(u));
-    return () => { unsubSoal(); unsubSetoran(); unsubPengaturan(); unsubAuth(); };
+    return () => { unsubSoal(); unsubSetoran(); unsubUjian(); unsubPengaturan(); unsubAuth(); };
   }, []);
 
   const handleLoginSiswa = async () => {
@@ -91,7 +96,6 @@ function App() {
        halaqah: halaqahDitemukan.nama,
        kodeHalaqah: halaqahDitemukan.kode
     });
-    // 👈 ALUR BERUBAH: MASUK KE LOBI DULU
     setHalaman('lobi');
   };
 
@@ -130,7 +134,6 @@ function App() {
                    </div>
                 </button>
              </div>
-             
              {googleUser && (
                 <div className="relative z-10 mt-8 text-center bg-white/10 backdrop-blur border border-white/20 p-4 rounded-2xl">
                    <p className="text-xs text-slate-300 font-bold uppercase mb-1">Akun Terhubung:</p>
@@ -146,12 +149,10 @@ function App() {
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl w-full max-w-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden transition-colors">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-emerald-400"></div>
               <button onClick={() => setHalaman('splash')} className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 font-bold text-xs mb-6 block transition-colors">← Halaman Utama</button>
-              
               <div className="text-center mb-8">
-                <h1 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">{pengaturan.judul}</h1>
+                <h1 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">LMSKU PRO</h1>
                 <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Gerbang Kelas Virtual</p>
               </div>
-
               <form onSubmit={handleMasukRuangan} className="space-y-4">
                  <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800 mb-4">
                     <div className="truncate pr-2">
@@ -160,27 +161,21 @@ function App() {
                     </div>
                     <button type="button" onClick={handleLogoutGmail} className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg font-bold text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors shadow-sm">Ganti Akun</button>
                  </div>
-
                  <input name="nama" defaultValue={googleUser.displayName} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
                  <input name="kodeSiswa" placeholder="No. Kode / NIS" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
-                 
                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 text-center">Masukkan Kode Kelas Anda</p>
                    <input name="kodeMasuk" placeholder="KODE..." required className="w-full p-4 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-200 dark:border-emerald-700 rounded-2xl outline-none text-center font-black text-emerald-600 dark:text-emerald-400 placeholder:text-emerald-300 dark:placeholder:text-emerald-700 uppercase tracking-widest text-lg focus:ring-2 ring-emerald-400" />
                  </div>
-                 
-                 <button type="submit" className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:border-b-0 active:translate-y-1 transition-all">
-                   MASUK KELAS
-                 </button>
+                 <button type="submit" className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:border-b-0 active:translate-y-1 transition-all">MASUK KELAS</button>
               </form>
             </div>
           </div>
         )}
 
-        {/* LOGIKA PERPINDAHAN HALAMAN BARU */}
-        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
-        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} keUjian={() => setHalaman('ujian')} keLogin={() => setHalaman('splash')} />}
-        {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} pengaturan={pengaturan} keLobi={() => setHalaman('lobi')} />}
+        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
+        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={() => setHalaman('splash')} />}
+        {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
       </div>
     </div>
   );
