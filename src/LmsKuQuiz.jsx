@@ -35,9 +35,13 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const durasiMaksimal = ujianAktif.durasi * 60;
   const [timeLeft, setTimeLeft] = useState(durasiMaksimal);
   const hasSubmitted = useRef(false);
+  
+  // 👈 REF UNTUK MELACAK JUMLAH PELANGGARAN MURID
+  const pelanggaran = useRef(0);
 
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
 
+  // WAKTU MUNDUR
   useEffect(() => {
     if (!isMulai || isSelesai) return;
     const timer = setInterval(() => {
@@ -57,7 +61,49 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     return () => clearInterval(timer);
   }, [isMulai, isSelesai]);
 
-  const mulaiUjian = () => { setIsMulai(true); setWaktuMulai(Date.now()); setTimeLeft(durasiMaksimal); };
+  // 👈 LOGIKA SISTEM PENGAWAS UJIAN (PROCTORING)
+  useEffect(() => {
+     if (!isMulai || isSelesai || !ujianAktif.kunciLayar) return;
+
+     const catatPelanggaran = () => {
+        pelanggaran.current += 1;
+        if (pelanggaran.current === 1) {
+           alert("⚠️ PERINGATAN KERAS!\nAnda terdeteksi keluar dari layar ujian atau membuka aplikasi/tab lain.\n\nJika Anda melakukan ini sekali lagi, sistem akan MENGUMPULKAN UJIAN ANDA SECARA OTOMATIS!");
+        } else if (pelanggaran.current >= 2) {
+           alert("⛔ PELANGGARAN FATAL!\nAnda telah keluar dari layar ujian lebih dari batas yang diizinkan. Ujian Anda diakhiri secara otomatis!");
+           if (!hasSubmitted.current) submitTugas(true);
+        }
+     };
+
+     const handleVisibilityChange = () => {
+        if (document.hidden && !hasSubmitted.current) catatPelanggaran();
+     };
+
+     const handleFullscreenChange = () => {
+        if (!document.fullscreenElement && !hasSubmitted.current) catatPelanggaran();
+     };
+
+     document.addEventListener("visibilitychange", handleVisibilityChange);
+     document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+     return () => {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMulai, isSelesai, ujianAktif.kunciLayar]);
+
+  const mulaiUjian = async () => { 
+     setIsMulai(true); 
+     setWaktuMulai(Date.now()); 
+     setTimeLeft(durasiMaksimal); 
+     
+     // 👈 PAKSA MASUK MODE FULLSCREEN JIKA UJIAN KETAT
+     if (ujianAktif.kunciLayar) {
+        try { await document.documentElement.requestFullscreen(); } 
+        catch (e) { console.log("Layar perangkat tidak mendukung Fullscreen otomatis."); }
+     }
+  };
 
   const handlePilihMulti = (opsi) => {
     let jwb = [...(jawabanPeserta[currentQuestionIndex] || [])];
@@ -113,6 +159,11 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     hasSubmitted.current = true;
+
+    // 👈 KELUAR DARI LAYAR PENUH SAAT UJIAN SELESAI
+    if (document.fullscreenElement) {
+       document.exitFullscreen().catch(err => console.log(err));
+    }
 
     let skorTotal = 0;
     soalUjianIni.forEach((soal, index) => {
@@ -173,15 +224,27 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         <div className="w-full max-w-md bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border border-slate-100 dark:border-slate-700 transition-colors">
            <span className="text-5xl mb-4 block">⏱️</span>
            <h1 className="text-3xl font-black mb-2 dark:text-white">{ujianAktif.judul}</h1>
-           <p className="text-slate-500 dark:text-slate-400 font-bold mb-6">Waktu Ujian: {ujianAktif.durasi} Menit</p>
+           <p className="text-slate-500 dark:text-slate-400 font-bold mb-4">Waktu Ujian: {ujianAktif.durasi} Menit</p>
            
-           <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
-              <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase mb-3 flex items-center gap-2"><span>⚠️</span> Tata Tertib Ujian:</p>
-              <ul className="text-sm text-indigo-900 dark:text-indigo-300 font-medium space-y-2 list-disc pl-4">
-                 <li>Sistem otomatis mengumpulkan jawaban jika waktu habis.</li>
-                 <li>Bagi soal Audio, pastikan durasi rekaman singkat (10-15 detik).</li>
-              </ul>
-           </div>
+           {ujianAktif.kunciLayar ? (
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
+                 <p className="text-xs font-black text-red-600 dark:text-red-400 uppercase mb-2 flex items-center gap-2"><span>🔒</span> Ujian Ketat Diaktifkan:</p>
+                 <ul className="text-sm text-red-800 dark:text-red-300 font-medium space-y-2 list-disc pl-4">
+                    <li>Layar akan terkunci di mode Fullscreen.</li>
+                    <li>Sistem akan melacak jika Anda membuka tab atau aplikasi lain.</li>
+                    <li><strong>Maksimal 1 kali pelanggaran.</strong> Pelanggaran kedua akan mengumpulkan ujian otomatis.</li>
+                 </ul>
+              </div>
+           ) : (
+              <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
+                 <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase mb-3 flex items-center gap-2"><span>⚠️</span> Tata Tertib Ujian:</p>
+                 <ul className="text-sm text-indigo-900 dark:text-indigo-300 font-medium space-y-2 list-disc pl-4">
+                    <li>Sistem otomatis mengumpulkan jawaban jika waktu habis.</li>
+                    <li>Pastikan koneksi internet stabil sebelum mulai.</li>
+                 </ul>
+              </div>
+           )}
+
            <button onClick={mulaiUjian} className="w-full py-4 bg-emerald-500 text-white font-black text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all shadow-[0_10px_20px_rgba(16,185,129,0.3)]">🚀 SAYA SIAP, MULAI!</button>
         </div>
      </div>
@@ -208,7 +271,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              <div className="grid grid-cols-2 gap-4">
                 <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Akun</p>
-                   {/* 👈 NIS DIHILANGKAN DARI SERTIFIKAT, DIGANTI EMAIL */}
                    <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.email.split('@')[0]}</p>
                 </div>
                 <div>

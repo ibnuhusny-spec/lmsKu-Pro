@@ -49,8 +49,9 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scaleSize = 400 / img.width;
-        canvas.width = 400; canvas.height = img.height * scaleSize;
+        const MAX_WIDTH = 400; 
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         setGambarUpload(canvas.toDataURL('image/jpeg', 0.5));
@@ -106,7 +107,6 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
                   let targetSesuai = true;
                   if (ujian.targetSiswa) {
                      const daftarTarget = ujian.targetSiswa.split(',').map(s => s.trim().toLowerCase());
-                     // 👈 SEKARANG MENGGUNAKAN EMAIL UNTUK TARGET MURID KARENA NIS DIHAPUS
                      if (!daftarTarget.includes(user.email.toLowerCase())) {
                         targetSesuai = false;
                      }
@@ -116,7 +116,6 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
                   if (waktuSekarang < tglMulai) statusWaktu = 'belum';
                   else if (waktuSekarang > tglSelesai) statusWaktu = 'lewat';
 
-                  // 👈 LOGIKA KUNCI GANDA: Mengecek Email Murid langsung di Database Setoran
                   const sudahDikerjakan = setoran.find(s => s.email === user.email && s.idUjian === ujian.docId);
 
                   if (!targetSesuai) return null; 
@@ -160,7 +159,7 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
            </div>
         </div>
 
-        <div className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-4" ref={scrollRef}>
+        <div className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-4 md:p-6 overflow-y-auto custom-scrollbar flex flex-col gap-4" ref={scrollRef}>
            {semuaPesan.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400 opacity-60">
                  <span className="text-6xl mb-4 block">💬</span>
@@ -186,8 +185,8 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
                              </div>
                           )}
                        </div>
-                       <div className={`p-4 rounded-3xl shadow-sm text-sm md:text-base whitespace-pre-wrap ${bubbleStyle}`}>
-                          {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
+                       <div className={`p-3 md:p-4 rounded-3xl shadow-sm text-sm md:text-base whitespace-pre-wrap break-words w-full ${bubbleStyle}`}>
+                          {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] w-full rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
                           {editPesanId === pesan.docId ? (
                              <div className="flex flex-col gap-2 mt-1">
                                 <textarea value={teksEdit} onChange={(e) => setTeksEdit(e.target.value)} className="w-full text-slate-800 p-2 rounded-xl text-sm outline-none" rows="2" />
@@ -204,19 +203,22 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
            )}
         </div>
 
-        <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 shrink-0">
+        {/* 👈 BAGIAN YANG DIPERBAIKI: MEMAKSA TOMBOL KOTAK & RATA TENGAH (items-center, shrink-0) */}
+        <div className="p-3 md:p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 shrink-0">
            {gambarUpload && (
               <div className="mb-3 relative inline-block">
                  <button onClick={() => setGambarUpload(null)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md z-10">✕</button>
                  <img src={gambarUpload} className="h-16 rounded-xl border-2 border-indigo-200 shadow-sm" alt="Preview" />
               </div>
            )}
-           <form onSubmit={kirimPesan} className="flex gap-2 relative">
-              <label className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 p-4 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center">
+           <form onSubmit={kirimPesan} className="flex gap-2 items-center relative w-full">
+              <label className="shrink-0 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 w-12 h-12 md:w-14 md:h-14 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center text-xl">
                  📸<input type="file" accept="image/*" className="hidden" onChange={handleUploadGambar} />
               </label>
-              <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tanya sesuatu di forum kelas..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-medium focus:ring-2 ring-indigo-400 transition-all border border-transparent dark:border-slate-700" />
-              <button type="submit" disabled={isKirim} className="bg-indigo-600 text-white p-4 rounded-2xl font-black shadow-lg hover:bg-indigo-500 active:scale-95 transition-all w-16 flex items-center justify-center">
+              
+              <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tanya di forum kelas..." className="flex-1 min-w-0 p-3 md:p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-medium focus:ring-2 ring-indigo-400 transition-all border border-transparent dark:border-slate-700 text-sm md:text-base" />
+              
+              <button type="submit" disabled={isKirim} className="shrink-0 bg-indigo-600 text-white w-12 h-12 md:w-14 md:h-14 rounded-2xl font-black shadow-lg hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center text-xl">
                  {isKirim ? '⏳' : '➤'}
               </button>
            </form>

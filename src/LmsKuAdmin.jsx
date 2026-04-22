@@ -44,7 +44,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const isSuperAdmin = emailAdmin === superAdmin;
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
-  const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; // 👈 DAFTAR BLOKIR
+  const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; 
   
   const halaqahMilikGuru = daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
@@ -52,13 +52,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
 
   const ujianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === kelasAktif);
-  // Sort ujian by time so the Report Card columns are chronological
   ujianKelasIni.sort((a, b) => new Date(a.waktuMulai) - new Date(b.waktuMulai));
 
   const soalTampil = bankSoal.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranTampil = setoran.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
-  
-  // Ambil semua setoran untuk kelas ini (untuk Buku Rapor)
   const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
 
   useEffect(() => {
@@ -85,7 +82,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     return () => unsubForum();
   }, [kelasAktif]);
 
-  // 👈 LOGIKA BUKU RAPOR & SISWA
   const daftarSiswaUnik = Array.from(new Set([
      ...setoranKelasIni.map(s => JSON.stringify({ email: s.email, nama: s.nama })),
      ...semuaPesan.filter(p => p.peran === 'siswa').map(p => JSON.stringify({ email: p.email, nama: p.nama }))
@@ -102,7 +98,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      });
      return { ...siswa, nilaiPerUjian, totalSkor };
   });
-  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor); // Peringkat Umum
+  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
 
   const blokirAkun = async (emailSiswa) => {
      if(window.confirm(`Yakin ingin memblokir permanen ${emailSiswa}?\nMurid ini tidak akan bisa masuk ke kelas Anda lagi.`)) {
@@ -118,10 +114,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   };
 
-
   const [editUjianId, setEditUjianId] = useState(null);
+  
+  // 👈 STATE formUjian DITAMBAH PROPERTI kunciLayar
   const [formUjian, setFormUjian] = useState({
-     judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: ''
+     judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false
   });
 
   const handleBuatUjian = async (e) => {
@@ -141,7 +138,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            setUjianAktifAdmin(docRef.id);
            alert("✅ Jadwal Ujian Berhasil Dibuat!");
         }
-        setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });
+        setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false });
      } catch(err) { alert("❌ Gagal menyimpan ujian."); }
   };
 
@@ -149,7 +146,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      setFormUjian({
         judul: ujian.judul || '', durasi: ujian.durasi || 60,
         waktuMulai: ujian.waktuMulai || '', waktuSelesai: ujian.waktuSelesai || '',
-        tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || ''
+        tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || '',
+        kunciLayar: ujian.kunciLayar || false // 👈 Load Status Kunci
      });
      setEditUjianId(ujian.docId);
   };
@@ -159,7 +157,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         await deleteDoc(doc(db, "ujian", docId));
         if(editUjianId === docId) {
            setEditUjianId(null);
-           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });
+           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false });
         }
      }
   };
@@ -380,10 +378,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Jadwal & Soal</button>
           <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'forum' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>💬 Forum Kelas</button>
           <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoranTampil.length})</button>
-          
-          {/* 👈 TAB BARU: RAPOR & SISWA */}
           <button onClick={() => {setTabAdmin('rapor'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'rapor' ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>📊 Data Siswa & Rapor</button>
-
           {isSuperAdmin && (
              <button onClick={() => {setTabAdmin('guru'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'guru' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>👥 Kelola Guru</button>
           )}
@@ -398,7 +393,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama} ({h.kode})</option>)}
                </select>
             </div>
-            
             {tabAdmin !== 'forum' && tabAdmin !== 'rapor' && (
             <div className="flex-1 min-w-[200px]">
                <label className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest block mb-1">2. Pilih Jadwal Ujian:</label>
@@ -416,7 +410,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          </div>
       )}
 
-      {/* ===================== TAB BARU: DATA SISWA & RAPOR ===================== */}
       {tabAdmin === 'rapor' && halaqahMilikGuru.length > 0 && (
          <div className="space-y-6">
             <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
@@ -427,10 +420,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <thead>
                         <tr className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs uppercase tracking-widest border-b-2 border-slate-200 dark:border-slate-600">
                            <th className="p-4 font-black rounded-tl-xl">No</th>
-                           
-                           {/* 👇 FITUR KOLOM BEKU (STICKY) UNTUK HEADER NAMA */}
                            <th className="p-4 font-black sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nama Siswa</th>
-                           
                            <th className="p-4 font-black border-r border-slate-200 dark:border-slate-600">Email (ID)</th>
                            {ujianKelasIni.map((u, i) => (
                               <th key={i} className="p-4 font-black text-center text-indigo-600 dark:text-indigo-400">{u.judul}</th>
@@ -448,12 +438,9 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                            rekapRapor.map((siswa, idx) => (
                               <tr key={idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
                                  <td className="p-4 font-bold text-slate-400">{idx + 1}</td>
-                                 
-                                 {/* 👇 FITUR KOLOM BEKU (STICKY) UNTUK ISI NAMA SISWA */}
                                  <td className="p-4 font-black text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
                                     {siswa.nama} {idx===0 && <span className="text-lg ml-1">🥇</span>} {idx===1 && <span className="text-lg ml-1">🥈</span>} {idx===2 && <span className="text-lg ml-1">🥉</span>}
                                  </td>
-
                                  <td className="p-4 text-xs font-bold text-slate-500 border-r border-slate-100 dark:border-slate-700">{siswa.email}</td>
                                  {ujianKelasIni.map((u, i) => (
                                     <td key={i} className="p-4 font-bold text-center text-slate-700 dark:text-slate-300">{siswa.nilaiPerUjian[u.docId] > 0 ? siswa.nilaiPerUjian[u.docId] : '-'}</td>
@@ -546,8 +533,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                               </span>
                            </div>
 
-                           <div className={`p-4 rounded-3xl text-sm whitespace-pre-wrap ${bubbleStyle}`}>
-                              {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
+                           <div className={`p-3 md:p-4 rounded-3xl text-sm whitespace-pre-wrap break-words w-full ${bubbleStyle}`}>
+                              {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] w-full rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
                               {editForumId === pesan.docId ? (
                                  <div className="flex flex-col gap-2 mt-1">
                                     <textarea value={teksEditForum} onChange={(e) => setTeksEditForum(e.target.value)} className="w-full text-slate-800 p-2 rounded-xl text-sm outline-none" rows="2" />
@@ -570,12 +557,12 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <img src={gambarUploadForum} className="h-20 rounded border border-slate-200" alt="Preview" />
                   </div>
                )}
-               <form onSubmit={kirimPesanGuru} className="flex gap-2">
-                  <label className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 p-4 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center">
+               <form onSubmit={kirimPesanGuru} className="flex gap-2 items-center relative w-full">
+                  <label className="shrink-0 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 w-12 h-12 md:w-14 md:h-14 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center text-xl">
                      📸<input type="file" accept="image/*" className="hidden" onChange={handleUploadGambarForum} />
                   </label>
-                  <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tulis pengumuman atau paste Link di sini..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-bold border border-transparent dark:border-slate-700 focus:ring-2 ring-emerald-400" />
-                  <button type="submit" className="bg-emerald-600 text-white p-4 rounded-2xl font-black shadow-lg hover:bg-emerald-500 active:scale-95 transition-all">➤</button>
+                  <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tulis pengumuman atau paste Link di sini..." className="flex-1 min-w-0 p-3 md:p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-bold border border-transparent dark:border-slate-700 focus:ring-2 ring-emerald-400 text-sm md:text-base" />
+                  <button type="submit" className="shrink-0 bg-emerald-600 text-white w-12 h-12 md:w-14 md:h-14 rounded-2xl font-black shadow-lg hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center text-xl">➤</button>
                </form>
             </div>
          </div>
@@ -614,11 +601,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             <div className={`p-6 rounded-3xl shadow-lg border-2 transition-colors ${editUjianId ? 'bg-yellow-900 border-yellow-500' : 'bg-orange-800 dark:bg-orange-900 border-transparent dark:border-orange-700'}`}>
                <div className="flex justify-between items-center mb-2">
                   <h2 className="text-sm font-black text-white">{editUjianId ? '✏️ Edit Jadwal Ujian' : '2. Jadwalkan Ujian untuk Kelas Aktif'}</h2>
-                  {editUjianId && <button type="button" onClick={() => {setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });}} className="text-xs text-red-300 hover:text-red-100 underline">Batal Edit</button>}
+                  {editUjianId && <button type="button" onClick={() => {setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false });}} className="text-xs text-red-300 hover:text-red-100 underline">Batal Edit</button>}
                </div>
                
                <form onSubmit={handleBuatUjian} className="space-y-3 mb-4">
-                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Harian 1)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
+                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Akhir Semester)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
                   
                   <div className="flex gap-2">
                      <div className="flex-1">
@@ -641,7 +628,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik Email Murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
                   </div>
 
-                  <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-2 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
+                  {/* 👇 FITUR BARU: TOMBOL CENTANG MODE KETAT / KUNCI LAYAR */}
+                  <label className={`flex items-center gap-3 cursor-pointer mt-4 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
+                     <input type="checkbox" checked={formUjian.kunciLayar || false} onChange={e=>setFormUjian({...formUjian, kunciLayar: e.target.checked})} className="w-5 h-5 accent-red-500 cursor-pointer" />
+                     <div className="flex flex-col">
+                        <span className={`text-xs font-black uppercase ${editUjianId ? 'text-yellow-100' : 'text-orange-100'}`}>🔒 Mode Ujian Ketat</span>
+                        <span className={`text-[9px] font-medium ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Kunci Fullscreen & Lacak Tab Keluar (Auto-Submit)</span>
+                     </div>
+                  </label>
+
+                  <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-4 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
                      {editUjianId ? '🔄 Update Jadwal Ujian' : 'Buat Jadwal Ujian'}
                   </button>
                </form>
@@ -653,7 +649,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      ujianKelasIni.map((u, i) => (
                        <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${editUjianId === u.docId ? 'bg-yellow-950 border-yellow-400' : 'bg-orange-950 border-orange-700'}`}>
                           <div>
-                             <p className="text-white font-bold text-xs">{u.judul}</p>
+                             <div className="flex items-center gap-2">
+                                <p className="text-white font-bold text-xs">{u.judul}</p>
+                                {u.kunciLayar && <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Ketat</span>}
+                             </div>
                              <p className={`text-[10px] ${editUjianId === u.docId ? 'text-yellow-400' : 'text-orange-400'}`}>{u.durasi} Mnt • {u.targetSiswa ? 'Khusus' : 'Semua Murid'}</p>
                           </div>
                           <div className="flex gap-1">
