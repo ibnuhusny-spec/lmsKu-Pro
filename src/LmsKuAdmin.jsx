@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db } from './firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const renderTeks = (text) => {
   if (!text) return null;
@@ -17,6 +17,18 @@ const formatWaktuTampil = (detik) => {
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
 
+// Fungsi agar Link otomatis berwarna biru dan bisa diklik di sisi Admin
+const formatTeksDenganLink = (teks) => {
+  if (!teks) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return teks.split(urlRegex).map((part, i) => {
+    if (part.match(urlRegex)) {
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 underline font-black break-all hover:opacity-80">{part}</a>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
+
 const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superAdmin }) => {
   const [tabAdmin, setTabAdmin] = useState('buat'); 
   const [isSaving, setIsSaving] = useState(false);
@@ -26,17 +38,32 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
   const [nilaiManual, setNilaiManual] = useState("");
   const [skorPerSoal, setSkorPerSoal] = useState({});
 
-  // Cek apakah yang login adalah Super Admin
-  const isSuperAdmin = emailAdmin === superAdmin;
+  // Kebutuhan Forum Guru
+  const [pesanText, setPesanText] = useState('');
+  const [gambarUploadForum, setGambarUploadForum] = useState(null);
+  const [semuaPesan, setSemuaPesan] = useState([]);
+  const scrollRef = useRef(null);
 
+  const isSuperAdmin = emailAdmin === superAdmin;
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
   const halaqahMilikGuru = daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
-  
   const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
 
   useEffect(() => {
      if (!kelasAktif && halaqahMilikGuru.length > 0) setKelasAktif(halaqahMilikGuru[0].kode);
   }, [halaqahMilikGuru, kelasAktif]);
+
+  useEffect(() => {
+    if(!kelasAktif) return;
+    const unsubForum = onSnapshot(collection(db, "forum"), (snap) => {
+      let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+      let pesanKelasIni = data.filter(d => d.kodeHalaqah === kelasAktif);
+      pesanKelasIni.sort((a, b) => a.waktu - b.waktu);
+      setSemuaPesan(pesanKelasIni);
+      setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
+    });
+    return () => unsubForum();
+  }, [kelasAktif]);
 
   const soalKelasIni = bankSoal.filter(s => s.kodeHalaqah === kelasAktif);
   const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
@@ -91,6 +118,25 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         setForm({ ...form, mediaSoalGambar: canvas.toDataURL('image/jpeg', 0.5) });
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadGambarForum = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scaleSize = 400 / img.width;
+        canvas.width = 400; canvas.height = img.height * scaleSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setGambarUploadForum(canvas.toDataURL('image/jpeg', 0.5));
       };
       img.src = event.target.result;
     };
@@ -200,7 +246,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
   const hapusSetoran = async (docId) => { if(window.confirm("Hapus hasil ujian murid ini?")) { await deleteDoc(doc(db, "setoran", docId)); if(setoranTerpilih && setoranTerpilih.docId === docId) setSetoranTerpilih(null); } };
   const hapusSemuaSetoran = async () => { if(window.confirm("⚠️ Yakin ingin menghapus SELURUH data evaluasi di kelas ini?")) { for (const s of setoranKelasIni) { await deleteDoc(doc(db, "setoran", s.docId)); } setSetoranTerpilih(null); alert("Bersih."); } };
 
-  // --- LOGIKA SUPER ADMIN (KELOLA GURU) ---
   const tambahGuru = async (e) => {
     e.preventDefault();
     const emailBaru = e.target.emailGuru.value.trim().toLowerCase();
@@ -219,6 +264,25 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
     }
   };
 
+  const kirimPesanGuru = async (e) => {
+    e.preventDefault();
+    if (!pesanText.trim() && !gambarUploadForum) return;
+    try {
+      await addDoc(collection(db, "forum"), {
+        kodeHalaqah: kelasAktif,
+        nama: 'Guru Pengajar',
+        email: emailAdmin,
+        peran: 'guru',
+        teks: pesanText,
+        gambar: gambarUploadForum,
+        waktu: Date.now(),
+        waktuTampil: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      });
+      setPesanText('');
+      setGambarUploadForum(null);
+    } catch (err) { alert("Gagal mengirim pesan."); }
+  };
+
   return (
     <div className="p-4 md:p-8 font-sans max-w-7xl mx-auto pb-32">
       
@@ -235,10 +299,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
       <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-700 pb-4 gap-4 transition-colors">
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Soal & Kelas</button>
+          <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'forum' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>💬 Forum Kelas</button>
           <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoranKelasIni.length})</button>
           <button onClick={() => {setTabAdmin('peringkat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'peringkat' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>🏆 Peringkat</button>
           
-          {/* TAB KHUSUS SUPER ADMIN */}
           {isSuperAdmin && (
              <button onClick={() => {setTabAdmin('guru'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'guru' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>👥 Kelola Guru</button>
           )}
@@ -251,7 +315,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
          </div>
       )}
 
-      {/* ===================== TAB SUPER ADMIN (KELOLA GURU) ===================== */}
       {tabAdmin === 'guru' && isSuperAdmin && (
         <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
           <div className="max-w-2xl mx-auto">
@@ -260,12 +323,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
                 <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Otorisasi Guru Admin</h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Daftarkan email guru di bawah ini agar mereka diizinkan masuk ke panel admin.</p>
              </div>
-
              <form onSubmit={tambahGuru} className="flex gap-3 mb-8">
                 <input name="emailGuru" type="email" placeholder="Contoh: guru1@gmail.com" required className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" />
                 <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-black px-6 rounded-2xl transition-colors shadow-lg active:scale-95">Daftarkan</button>
              </form>
-
              <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-700">
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 ml-2">Daftar Guru Terdaftar ({(pengaturan.daftarGuru || []).length})</p>
                 <div className="space-y-3">
@@ -275,9 +336,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
                       pengaturan.daftarGuru.map((email, idx) => (
                          <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-600 shadow-sm transition-colors">
                             <div className="flex items-center gap-3">
-                               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center font-black text-lg">
-                                  {email.charAt(0).toUpperCase()}
-                               </div>
+                               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center font-black text-lg">{email.charAt(0).toUpperCase()}</div>
                                <p className="font-bold text-slate-700 dark:text-white">{email}</p>
                             </div>
                             <button onClick={() => hapusGuru(email)} className="text-xs font-bold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-lg transition-colors">Cabut Akses</button>
@@ -290,7 +349,61 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
         </div>
       )}
 
-      {/* ===================== TAB BUAT SOAL ===================== */}
+      {tabAdmin === 'forum' && halaqahMilikGuru.length > 0 && (
+         <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 h-[80vh] flex flex-col transition-colors">
+            <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 mb-4 w-fit">
+               <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block mb-1">Tampilkan Forum Kelas:</label>
+               <select value={kelasAktif} onChange={(e) => setKelasAktif(e.target.value)} className="w-full p-2 bg-white dark:bg-slate-700 text-indigo-800 dark:text-white font-bold text-sm rounded outline-none cursor-pointer">
+                  {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama}</option>)}
+               </select>
+            </div>
+
+            <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 p-4 md:p-6 rounded-2xl overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-700 mb-4 flex flex-col gap-4" ref={scrollRef}>
+               {semuaPesan.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                     <span className="text-5xl mb-4 block">💬</span>
+                     <p className="font-bold text-sm">Belum ada diskusi dari murid di kelas ini.</p>
+                  </div>
+               ) : (
+                  semuaPesan.map((pesan, idx) => {
+                     const isGuru = pesan.peran === 'guru';
+                     
+                     // Guru melihat chatnya sendiri rata kanan, murid di kiri
+                     let bubbleStyle = isGuru ? 'bg-gradient-to-br from-amber-100 to-yellow-300 dark:from-yellow-600 dark:to-amber-700 text-slate-900 dark:text-white font-medium rounded-tr-sm border-2 border-yellow-400 dark:border-yellow-500 shadow-md' : 'bg-white dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-sm shadow-sm';
+
+                     return (
+                        <div key={idx} className={`flex flex-col max-w-[80%] ${isGuru ? 'self-end items-end ml-auto' : 'self-start items-start'}`}>
+                           <span className={`text-[10px] font-bold mx-2 mb-1 ${isGuru ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                              {isGuru ? 'Anda (Guru)' : pesan.nama} • {pesan.waktuTampil}
+                           </span>
+                           <div className={`p-4 rounded-3xl text-sm whitespace-pre-wrap ${bubbleStyle}`}>
+                              {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
+                              {formatTeksDenganLink(pesan.teks)}
+                           </div>
+                        </div>
+                     )
+                  })
+               )}
+            </div>
+            
+            <div className="shrink-0 relative">
+               {gambarUploadForum && (
+                  <div className="mb-3 absolute bottom-full left-0 z-10 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg">
+                     <button onClick={() => setGambarUploadForum(null)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md">✕</button>
+                     <img src={gambarUploadForum} className="h-20 rounded border border-slate-200" alt="Preview" />
+                  </div>
+               )}
+               <form onSubmit={kirimPesanGuru} className="flex gap-2">
+                  <label className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 p-4 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center">
+                     📸<input type="file" accept="image/*" className="hidden" onChange={handleUploadGambarForum} />
+                  </label>
+                  <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tulis pengumuman atau paste Link Google Drive materi di sini..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-bold border border-transparent dark:border-slate-700 focus:ring-2 ring-emerald-400" />
+                  <button type="submit" className="bg-emerald-600 text-white p-4 rounded-2xl font-black shadow-lg hover:bg-emerald-500 active:scale-95 transition-all">➤</button>
+               </form>
+            </div>
+         </div>
+      )}
+
       {tabAdmin === 'buat' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-6">
@@ -430,9 +543,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
           </div>
 
           <div className="lg:col-span-7 space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
-             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2">
-                Bank Soal Kelas Ini ({soalKelasIni.length})
-             </h2>
+             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2">Bank Soal Kelas Ini ({soalKelasIni.length})</h2>
              {soalKelasIni.length === 0 && <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center text-slate-400 font-medium transition-colors">Belum ada soal di kelas ini.</div>}
              
              {soalKelasIni.map((soal, idx) => (
@@ -462,7 +573,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
         </div>
       )}
 
-      {/* ===================== TAB EVALUASI ===================== */}
       {tabAdmin === 'koreksi' && halaqahMilikGuru.length > 0 && (
         <div className="bg-white dark:bg-slate-800 p-4 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
           <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 mb-6 w-fit">
@@ -534,6 +644,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
                             
                             <div className="mb-4 bg-white dark:bg-slate-800 p-4 rounded-xl border border-purple-100 dark:border-purple-900/50 shadow-sm transition-colors">
                                <p className="font-bold text-slate-700 dark:text-white mb-3">{renderTeks(soal.teksSoal)}</p>
+                               {soal.teksTambahanArab && <p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mb-3" dir="rtl">{soal.teksTambahanArab}</p>}
                                {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 rounded border dark:border-slate-600 mb-2" />}
                                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-8" />}
                             </div>
@@ -597,13 +708,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
         </div>
       )}
 
-      {/* TAB PERINGKAT TERISOLASI */}
       {tabAdmin === 'peringkat' && halaqahMilikGuru.length > 0 && (
         <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
              <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Papan Peringkat</h2>
           </div>
-          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {halaqahMilikGuru.map((h, i) => {
               const peringkatHalaqah = setoran.filter(s => s.kodeHalaqah === h.kode && s.kuisJudul === pengaturan.judul).sort((a, b) => b.nilaiSistem - a.nilaiSistem || (a.waktuPengerjaan || 9999) - (b.waktuPengerjaan || 9999));
@@ -611,7 +720,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
                 <div key={i} className="bg-slate-50 dark:bg-slate-700 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-600 transition-colors">
                   <h3 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase mb-1 tracking-widest">{h.nama}</h3>
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 mb-4">Kode Kelas: {h.kode}</p>
-                  
                   {peringkatHalaqah.length === 0 ? (
                      <p className="text-xs text-slate-400 dark:text-slate-500 italic">Belum ada murid yang selesai.</p>
                   ) : (

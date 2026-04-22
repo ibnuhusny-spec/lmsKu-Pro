@@ -229,8 +229,8 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, pengaturan, keLogin }) => {
            <button onClick={() => window.print()} className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:translate-y-1 active:border-b-0 transition-all flex justify-center items-center gap-2">
               🖨️ Cetak / Download Bukti
            </button>
-           <button onClick={keLogin} className="w-full py-4 bg-slate-200 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-200 rounded-2xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
-              Selesai & Keluar Portal
+           <button onClick={keLobi} className="w-full py-4 bg-slate-200 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-200 rounded-2xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+              ← Kembali ke Lobi Kelas
            </button>
         </div>
 
