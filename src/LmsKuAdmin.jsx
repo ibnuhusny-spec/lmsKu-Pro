@@ -17,7 +17,6 @@ const formatWaktuTampil = (detik) => {
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
 
-// Fungsi agar Link otomatis berwarna biru dan bisa diklik di sisi Admin
 const formatTeksDenganLink = (teks) => {
   if (!teks) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -42,6 +41,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
   const [pesanText, setPesanText] = useState('');
   const [gambarUploadForum, setGambarUploadForum] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
+  
+  // State Edit Pesan Guru
+  const [editForumId, setEditForumId] = useState(null);
+  const [teksEditForum, setTeksEditForum] = useState('');
+
   const scrollRef = useRef(null);
 
   const isSuperAdmin = emailAdmin === superAdmin;
@@ -283,6 +287,21 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
     } catch (err) { alert("Gagal mengirim pesan."); }
   };
 
+  // FUNGSI HAPUS DAN EDIT FORUM UNTUK GURU
+  const hapusPesanForum = async (docId) => {
+     if(window.confirm("Hapus pesan ini dari forum?")) {
+        await deleteDoc(doc(db, "forum", docId));
+     }
+  };
+
+  const simpanEditForum = async (docId) => {
+     if(!teksEditForum.trim()) return;
+     try {
+        await updateDoc(doc(db, "forum", docId), { teks: teksEditForum });
+        setEditForumId(null);
+     } catch(e) { alert("Gagal mengedit pesan."); }
+  };
+
   return (
     <div className="p-4 md:p-8 font-sans max-w-7xl mx-auto pb-32">
       
@@ -367,18 +386,40 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin, superA
                ) : (
                   semuaPesan.map((pesan, idx) => {
                      const isGuru = pesan.peran === 'guru';
+                     const isSaya = isGuru && pesan.email === emailAdmin;
                      
-                     // Guru melihat chatnya sendiri rata kanan, murid di kiri
                      let bubbleStyle = isGuru ? 'bg-gradient-to-br from-amber-100 to-yellow-300 dark:from-yellow-600 dark:to-amber-700 text-slate-900 dark:text-white font-medium rounded-tr-sm border-2 border-yellow-400 dark:border-yellow-500 shadow-md' : 'bg-white dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-sm shadow-sm';
 
                      return (
                         <div key={idx} className={`flex flex-col max-w-[80%] ${isGuru ? 'self-end items-end ml-auto' : 'self-start items-start'}`}>
-                           <span className={`text-[10px] font-bold mx-2 mb-1 ${isGuru ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
-                              {isGuru ? 'Anda (Guru)' : pesan.nama} • {pesan.waktuTampil}
-                           </span>
+                           <div className="flex items-center gap-2 mb-1 mx-2">
+                              {/* TOMBOL MODERATOR UNTUK GURU */}
+                              <div className="flex gap-1">
+                                 {isSaya && (
+                                    <button onClick={() => {setEditForumId(pesan.docId); setTeksEditForum(pesan.teks);}} className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-yellow-200 px-1.5 py-0.5 rounded">✏️</button>
+                                 )}
+                                 <button onClick={() => hapusPesanForum(pesan.docId)} className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 px-1.5 py-0.5 rounded">🗑️ Hapus</button>
+                              </div>
+                              <span className={`text-[10px] font-bold ${isGuru ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                                 {isGuru ? 'Anda (Guru)' : pesan.nama} • {pesan.waktuTampil}
+                              </span>
+                           </div>
+
                            <div className={`p-4 rounded-3xl text-sm whitespace-pre-wrap ${bubbleStyle}`}>
                               {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
-                              {formatTeksDenganLink(pesan.teks)}
+                              
+                              {/* EDIT KHUSUS GURU */}
+                              {editForumId === pesan.docId ? (
+                                 <div className="flex flex-col gap-2 mt-1">
+                                    <textarea value={teksEditForum} onChange={(e) => setTeksEditForum(e.target.value)} className="w-full text-slate-800 p-2 rounded-xl text-sm outline-none" rows="2" />
+                                    <div className="flex justify-end gap-2">
+                                       <button onClick={() => setEditForumId(null)} className="text-xs bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold">Batal</button>
+                                       <button onClick={() => simpanEditForum(pesan.docId)} className="text-xs bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold">Simpan</button>
+                                    </div>
+                                 </div>
+                              ) : (
+                                 formatTeksDenganLink(pesan.teks)
+                              )}
                            </div>
                         </div>
                      )

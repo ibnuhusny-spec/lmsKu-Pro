@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase';
-import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
-// Fungsi agar Link otomatis berwarna biru dan bisa diklik
 const formatTeksDenganLink = (teks) => {
   if (!teks) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -19,6 +18,11 @@ const LmsKuLobi = ({ user, pengaturan, keUjian, keLogin }) => {
   const [gambarUpload, setGambarUpload] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
   const [isKirim, setIsKirim] = useState(false);
+  
+  // State untuk mode Edit
+  const [editPesanId, setEditPesanId] = useState(null);
+  const [teksEdit, setTeksEdit] = useState('');
+
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -40,7 +44,7 @@ const LmsKuLobi = ({ user, pengaturan, keUjian, keLogin }) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; // Kompresi kuat untuk forum
+        const MAX_WIDTH = 400; 
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
@@ -71,6 +75,21 @@ const LmsKuLobi = ({ user, pengaturan, keUjian, keLogin }) => {
       setGambarUpload(null);
     } catch (err) { alert("Gagal mengirim. Gambar mungkin terlalu besar."); }
     setIsKirim(false);
+  };
+
+  // FUNGSI HAPUS DAN EDIT PESAN MURID
+  const hapusPesan = async (docId) => {
+     if(window.confirm("Hapus pesan ini?")) {
+        await deleteDoc(doc(db, "forum", docId));
+     }
+  };
+
+  const simpanEdit = async (docId) => {
+     if(!teksEdit.trim()) return;
+     try {
+        await updateDoc(doc(db, "forum", docId), { teks: teksEdit });
+        setEditPesanId(null);
+     } catch(e) { alert("Gagal mengedit pesan."); }
   };
 
   return (
@@ -107,18 +126,39 @@ const LmsKuLobi = ({ user, pengaturan, keUjian, keLogin }) => {
                  const isSaya = pesan.email === user.email;
                  const isGuru = pesan.peran === 'guru';
                  
-                 // Styling khusus untuk membedakan Guru dan Murid
                  let bubbleStyle = isSaya ? 'bg-indigo-500 text-white rounded-tr-sm border border-indigo-600' : 'bg-white dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-sm';
                  if (isGuru) bubbleStyle = 'bg-gradient-to-br from-amber-100 to-yellow-300 dark:from-yellow-600 dark:to-amber-700 text-slate-900 dark:text-white font-medium rounded-tl-sm border-2 border-yellow-400 dark:border-yellow-500 shadow-md';
 
                  return (
                     <div key={idx} className={`flex flex-col max-w-[85%] ${isSaya ? 'self-end items-end' : 'self-start items-start'}`}>
-                       <span className={`text-[10px] font-bold mb-1 ml-2 mr-2 ${isGuru ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
-                          {isGuru ? '👑 Guru Pengajar' : pesan.nama} • {pesan.waktuTampil}
-                       </span>
+                       <div className="flex items-center gap-2 mb-1 ml-2 mr-2">
+                          <span className={`text-[10px] font-bold ${isGuru ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                             {isGuru ? '👑 Guru Pengajar' : pesan.nama} • {pesan.waktuTampil}
+                          </span>
+                          {/* TOMBOL EDIT & HAPUS JIKA INI PESAN SAYA */}
+                          {isSaya && (
+                             <div className="flex gap-1">
+                                <button onClick={() => {setEditPesanId(pesan.docId); setTeksEdit(pesan.teks);}} className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-200 px-1.5 py-0.5 rounded">✏️</button>
+                                <button onClick={() => hapusPesan(pesan.docId)} className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 px-1.5 py-0.5 rounded">🗑️</button>
+                             </div>
+                          )}
+                       </div>
+                       
                        <div className={`p-4 rounded-3xl shadow-sm text-sm md:text-base whitespace-pre-wrap ${bubbleStyle}`}>
                           {pesan.gambar && <img src={pesan.gambar} className="max-w-[200px] rounded-xl mb-3 border border-white/30 shadow-sm" alt="Lampiran" />}
-                          {formatTeksDenganLink(pesan.teks)}
+                          
+                          {/* KONDISI JIKA SEDANG DIEDIT ATAU TAMPIL BIASA */}
+                          {editPesanId === pesan.docId ? (
+                             <div className="flex flex-col gap-2 mt-1">
+                                <textarea value={teksEdit} onChange={(e) => setTeksEdit(e.target.value)} className="w-full text-slate-800 p-2 rounded-xl text-sm outline-none" rows="2" />
+                                <div className="flex justify-end gap-2">
+                                   <button onClick={() => setEditPesanId(null)} className="text-xs bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold">Batal</button>
+                                   <button onClick={() => simpanEdit(pesan.docId)} className="text-xs bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold">Simpan</button>
+                                </div>
+                             </div>
+                          ) : (
+                             formatTeksDenganLink(pesan.teks)
+                          )}
                        </div>
                     </div>
                  )
@@ -137,7 +177,7 @@ const LmsKuLobi = ({ user, pengaturan, keUjian, keLogin }) => {
               <label className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 p-4 rounded-2xl cursor-pointer transition-colors shadow-inner flex items-center justify-center">
                  📸<input type="file" accept="image/*" className="hidden" onChange={handleUploadGambar} />
               </label>
-              <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tanya atau paste link materi di sini..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-medium focus:ring-2 ring-indigo-400 transition-all border border-transparent dark:border-slate-700" />
+              <input type="text" value={pesanText} onChange={(e) => setPesanText(e.target.value)} placeholder="Tanya sesuatu di forum kelas..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl outline-none font-medium focus:ring-2 ring-indigo-400 transition-all border border-transparent dark:border-slate-700" />
               <button type="submit" disabled={isKirim} className="bg-indigo-600 text-white p-4 rounded-2xl font-black shadow-lg hover:bg-indigo-500 active:scale-95 transition-all w-16 flex items-center justify-center">
                  {isKirim ? '⏳' : '➤'}
               </button>
