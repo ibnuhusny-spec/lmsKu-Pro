@@ -23,11 +23,8 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
   const [waktuSekarang, setWaktuSekarang] = useState(new Date());
 
   const scrollRef = useRef(null);
-
-  // Filter jadwal ujian yang khusus ada di kelas murid ini
   const jadwalUjianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === user.kodeHalaqah);
 
-  // Timer pembaruan waktu agar status ujian bisa berubah otomatis
   useEffect(() => {
      const timer = setInterval(() => setWaktuSekarang(new Date()), 10000);
      return () => clearInterval(timer);
@@ -52,9 +49,8 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; 
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
+        const scaleSize = 400 / img.width;
+        canvas.width = 400; canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         setGambarUpload(canvas.toDataURL('image/jpeg', 0.5));
@@ -85,7 +81,6 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
      try { await updateDoc(doc(db, "forum", docId), { teks: teksEdit }); setEditPesanId(null); } catch(e) { alert("Gagal mengedit."); }
   };
 
-  // FORMAT TANGGAL RAPI
   const formatTgl = (tglString) => {
      if(!tglString) return '-';
      const d = new Date(tglString);
@@ -95,7 +90,6 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4 md:p-8 transition-colors flex flex-col items-center">
       
-      {/* 📋 PANEL DAFTAR UJIAN MURID */}
       <div className="w-full max-w-4xl bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 p-6">
          <h2 className="text-xl font-black text-slate-800 dark:text-white mb-4">📋 Daftar Tugas & Ujian Anda</h2>
          
@@ -109,24 +103,23 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
                   const tglMulai = new Date(ujian.waktuMulai);
                   const tglSelesai = new Date(ujian.waktuSelesai);
                   
-                  // Pengecekan Target Murid
                   let targetSesuai = true;
                   if (ujian.targetSiswa) {
                      const daftarTarget = ujian.targetSiswa.split(',').map(s => s.trim().toLowerCase());
-                     if (!daftarTarget.includes(user.kodeSiswa.toLowerCase()) && !daftarTarget.includes(user.email.toLowerCase())) {
+                     // 👈 SEKARANG MENGGUNAKAN EMAIL UNTUK TARGET MURID KARENA NIS DIHAPUS
+                     if (!daftarTarget.includes(user.email.toLowerCase())) {
                         targetSesuai = false;
                      }
                   }
 
-                  // Pengecekan Waktu
-                  let statusWaktu = 'berlangsung'; // bisa 'belum', 'berlangsung', 'lewat'
+                  let statusWaktu = 'berlangsung'; 
                   if (waktuSekarang < tglMulai) statusWaktu = 'belum';
                   else if (waktuSekarang > tglSelesai) statusWaktu = 'lewat';
 
-                  // Pengecekan Sudah Dikerjakan atau Belum
-                  const sudahDikerjakan = setoran.find(s => s.kodeSiswa === user.kodeSiswa && s.idUjian === ujian.docId);
+                  // 👈 LOGIKA KUNCI GANDA: Mengecek Email Murid langsung di Database Setoran
+                  const sudahDikerjakan = setoran.find(s => s.email === user.email && s.idUjian === ujian.docId);
 
-                  if (!targetSesuai) return null; // Jika bukan target, jangan tampilkan kartunya
+                  if (!targetSesuai) return null; 
 
                   return (
                      <div key={idx} className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl p-5 flex flex-col justify-between">
@@ -154,7 +147,6 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
          </div>
       </div>
 
-      {/* 💬 FORUM LOBI KELAS */}
       <div className="w-full max-w-4xl bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col h-[70vh]">
         <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-6 flex flex-wrap justify-between items-center shadow-md relative overflow-hidden shrink-0">
            <div className="absolute top-[-50%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>

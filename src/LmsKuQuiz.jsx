@@ -18,7 +18,6 @@ const formatWaktuTampil = (detik) => {
   return `${Math.floor(detik / 60)}m ${detik % 60}s`;
 };
 
-// 👈 MENERIMA PROPS "ujianAktif" DARI LOBI
 const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const [isMulai, setIsMulai] = useState(false);
   const [waktuMulai, setWaktuMulai] = useState(null);
@@ -32,10 +31,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // 👈 HANYA AMBIL SOAL YANG ID UJIAN-NYA SAMA
   const soalUjianIni = bankSoal.filter(s => s.idUjian === ujianAktif.docId);
-
-  // 👈 DURASI DIAMBIL DARI JADWAL UJIAN
   const durasiMaksimal = ujianAktif.durasi * 60;
   const [timeLeft, setTimeLeft] = useState(durasiMaksimal);
   const hasSubmitted = useRef(false);
@@ -149,13 +145,13 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     try {
       await addDoc(collection(db, "setoran"), {
         ...user, 
-        idUjian: ujianAktif.docId, // 👈 Identitas Ujian Tersimpan
+        idUjian: ujianAktif.docId, 
         nilaiSistem: nilaiFinal, 
         waktuPengerjaan: durasiPengerjaan,
         jawaban: jawabanPeserta, 
         tanggal: tanggalFormatRapi,
         tanggalReal: new Date().toISOString(), 
-        kuisJudul: ujianAktif.judul // 👈 Judul Ujian Tersimpan
+        kuisJudul: ujianAktif.judul 
       });
       setIsSelesai(true);
     } catch (e) { 
@@ -211,8 +207,9 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              </div>
              <div className="grid grid-cols-2 gap-4">
                 <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Kode</p>
-                   <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.kodeSiswa}</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Akun</p>
+                   {/* 👈 NIS DIHILANGKAN DARI SERTIFIKAT, DIGANTI EMAIL */}
+                   <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.email.split('@')[0]}</p>
                 </div>
                 <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase">Waktu Selesai</p>
@@ -322,7 +319,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                {(jwbUraian.gambar || jwbUraian.suara) && (
                   <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-xl border border-slate-200 dark:border-slate-600 space-y-4 shadow-inner transition-colors">
                      {jwbUraian.gambar && (<div className="relative text-center"><button onClick={() => handleUraianUpdate('gambar', null)} className="absolute -top-2 right-0 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md">✕</button><img src={jwbUraian.gambar} className="max-h-40 mx-auto rounded-lg border-2 border-white dark:border-slate-800 shadow-sm" /></div>)}
-                     {jwbUraian.suara && (<div className="relative"><button onClick={() => handleUraianUpdate('suara', null)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md z-10">✕</button><audio controls src={jwbUraian.suara} className="w-full h-10 shadow-sm rounded-full" /></div>)}
+                     {jwbUraian.suara && (<div className="relative"><button onClick={() => handleUraianUpdate('suara', null)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs z-10 shadow-md">✕</button><audio controls src={jwbUraian.suara} className="w-full h-10 shadow-sm rounded-full" /></div>)}
                   </div>
                )}
             </div>

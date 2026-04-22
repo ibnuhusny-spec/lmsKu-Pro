@@ -50,23 +50,20 @@ function App() {
       }
     });
 
-    // 👈 LOGIKA BARU: Mengecek apakah murid sudah pernah login dan masuk kelas
     const unsubAuth = auth.onAuthStateChanged((u) => {
        setGoogleUser(u);
        if (u) {
           const sesiTersimpan = localStorage.getItem('lmsku_sesi_siswa');
           if (sesiTersimpan) {
              const dataSesi = JSON.parse(sesiTersimpan);
-             // Pastikan email di memori sama dengan email Google yang aktif
              if (dataSesi.email === u.email) {
                 setUser(dataSesi);
-                setHalaman('lobi'); // Langsung lemparkan ke Lobi Kelas!
+                setHalaman('lobi'); 
              } else {
                 localStorage.removeItem('lmsku_sesi_siswa');
              }
           }
        } else {
-          // Jika logout dari Google, bersihkan memori kelas
           localStorage.removeItem('lmsku_sesi_siswa');
           setUser(null);
        }
@@ -102,14 +99,14 @@ function App() {
   };
 
   const handleLogoutGmail = () => { 
-     localStorage.removeItem('lmsku_sesi_siswa'); // Bersihkan memori saat ganti akun
+     localStorage.removeItem('lmsku_sesi_siswa'); 
      signOut(auth); 
      setGoogleUser(null); 
      setHalaman('splash'); 
   };
 
   const handleKeluarKelas = () => {
-     localStorage.removeItem('lmsku_sesi_siswa'); // Bersihkan memori agar bisa masuk kelas lain
+     localStorage.removeItem('lmsku_sesi_siswa'); 
      setUser(null);
      setHalaman('login_siswa');
   };
@@ -126,17 +123,23 @@ function App() {
     const sesiBaru = { 
        nama: data.get('nama'), 
        email: googleUser.email, 
-       kodeSiswa: data.get('kodeSiswa'), 
        halaqah: halaqahDitemukan.nama,
        kodeHalaqah: halaqahDitemukan.kode
     };
 
     setUser(sesiBaru);
-    localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(sesiBaru)); // 👈 SIMPAN KE MEMORI HP MURID
+    localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(sesiBaru)); 
     setHalaman('lobi');
   };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  // Fungsi untuk mengambil nama dari email jika nama google kosong
+  const getNamaDefault = () => {
+     if (!googleUser) return '';
+     if (googleUser.displayName) return googleUser.displayName;
+     return googleUser.email.split('@')[0]; // Ambil teks sebelum @
+  };
 
   return (
     <div className={`${isDarkMode ? 'dark' : ''} transition-colors duration-500`}>
@@ -198,8 +201,12 @@ function App() {
                     </div>
                     <button type="button" onClick={handleLogoutGmail} className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg font-bold text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors shadow-sm">Ganti Akun</button>
                  </div>
-                 <input name="nama" defaultValue={googleUser.displayName} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
-                 <input name="kodeSiswa" placeholder="No. Kode / NIS" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
+                 
+                 <label className="text-[10px] font-black text-slate-400 uppercase block -mb-2">Nama Anda di Kelas</label>
+                 <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
+                 
+                 {/* KODE SISWA/NIS DIHAPUS DARI SINI */}
+
                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 text-center">Masukkan Kode Kelas Anda</p>
                    <input name="kodeMasuk" placeholder="KODE..." required className="w-full p-4 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-200 dark:border-emerald-700 rounded-2xl outline-none text-center font-black text-emerald-600 dark:text-emerald-400 placeholder:text-emerald-300 dark:placeholder:text-emerald-700 uppercase tracking-widest text-lg focus:ring-2 ring-emerald-400" />

@@ -93,9 +93,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            alert("✅ Jadwal Ujian Berhasil Diupdate!");
            setEditUjianId(null);
         } else {
-           await addDoc(collection(db, "ujian"), {
+           // 👈 LOGIKA BARU: Otomatis memilih ujian yang baru dibuat agar layar soal kosong
+           const docRef = await addDoc(collection(db, "ujian"), {
               ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
            });
+           setUjianAktifAdmin(docRef.id);
            alert("✅ Jadwal Ujian Berhasil Dibuat!");
         }
         setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });
@@ -508,7 +510,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <form onSubmit={handleBuatUjian} className="space-y-3 mb-4">
                   <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Harian 1)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
                   
-                  {/* PENAMBAHAN KELAS CSS "dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:dark:invert" AGAR KALENDER MUNCUL TERANG DI MODE GELAP */}
                   <div className="flex gap-2">
                      <div className="flex-1">
                         <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-200' : 'text-orange-300'}`}>Waktu Mulai:</label>
@@ -526,8 +527,9 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   </div>
 
                   <div className={`p-3 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
+                     {/* 👈 LABEL TARGET DIUBAH MENJADI EMAIL MURID */}
                      <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Kosongkan jika untuk semua):</label>
-                     <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik NIS murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
+                     <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik Email Murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
                   </div>
 
                   <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-2 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
@@ -704,7 +706,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                             </div>
                             <div>
                                <h3 className="font-black text-slate-800 dark:text-white text-lg leading-tight">{s.nama}</h3>
-                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Kode: {s.kodeSiswa} • ⏱️ {formatWaktuTampil(s.waktuPengerjaan)}</p>
+                               {/* 👈 KODE SISWA DIUBAH JADI EMAIL DI EVALUASI */}
+                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Email: {s.email.split('@')[0]} • ⏱️ {formatWaktuTampil(s.waktuPengerjaan)}</p>
                             </div>
                          </div>
                          <div className="flex gap-2 w-full md:w-auto">
