@@ -16,7 +16,7 @@ function App() {
   const [setoran, setSetoran] = useState([]);
   const [daftarUjian, setDaftarUjian] = useState([]); 
   const [ujianAktif, setUjianAktif] = useState(null); 
-  const [pengaturan, setPengaturan] = useState({ daftarHalaqah: [], daftarGuru: [] });
+  const [pengaturan, setPengaturan] = useState({ daftarHalaqah: [], daftarGuru: [], daftarBlokir: [] });
 
   const SUPER_ADMIN = 'ibnuhusny@gmail.com';
 
@@ -45,7 +45,8 @@ function App() {
            judul: data.judul || 'LMSKU PRO', 
            durasi: data.durasi || 5, 
            daftarHalaqah: data.daftarHalaqah || [],
-           daftarGuru: data.daftarGuru || []
+           daftarGuru: data.daftarGuru || [],
+           daftarBlokir: data.daftarBlokir || [] // 👈 DATABASE BUKU HITAM
         });
       }
     });
@@ -116,6 +117,11 @@ function App() {
     const data = new FormData(e.target);
     const kodeMasuk = data.get('kodeMasuk').toUpperCase().trim();
     
+    // 👈 SISTEM CEKAL OTOMATIS JIKA MURID DIBLOKIR GURU
+    if (pengaturan.daftarBlokir && pengaturan.daftarBlokir.includes(googleUser.email.toLowerCase())) {
+       return alert("⛔ AKSES DITOLAK!\nAkun Anda telah diblokir secara permanen dari sistem oleh Guru/Admin.");
+    }
+
     if (!pengaturan.daftarHalaqah || pengaturan.daftarHalaqah.length === 0) return alert("🚧 Ruang kelas belum dibuat guru.");
     const halaqahDitemukan = pengaturan.daftarHalaqah.find(h => h.kode === kodeMasuk);
     if (!halaqahDitemukan) return alert("❌ Kode Kelas salah!");
@@ -134,11 +140,10 @@ function App() {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  // Fungsi untuk mengambil nama dari email jika nama google kosong
   const getNamaDefault = () => {
      if (!googleUser) return '';
      if (googleUser.displayName) return googleUser.displayName;
-     return googleUser.email.split('@')[0]; // Ambil teks sebelum @
+     return googleUser.email.split('@')[0];
   };
 
   return (
@@ -202,10 +207,11 @@ function App() {
                     <button type="button" onClick={handleLogoutGmail} className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg font-bold text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors shadow-sm">Ganti Akun</button>
                  </div>
                  
-                 <label className="text-[10px] font-black text-slate-400 uppercase block -mb-2">Nama Anda di Kelas</label>
-                 <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
-                 
-                 {/* KODE SISWA/NIS DIHAPUS DARI SINI */}
+                 {/* 👈 FIX MARGIN: -mb-2 DIUBAH MENJADI mb-1 AGAR TIDAK TERTIMPA */}
+                 <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Nama Anda di Kelas</label>
+                    <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />
+                 </div>
 
                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 text-center">Masukkan Kode Kelas Anda</p>

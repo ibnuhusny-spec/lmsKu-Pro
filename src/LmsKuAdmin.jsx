@@ -44,14 +44,22 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const isSuperAdmin = emailAdmin === superAdmin;
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
+  const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; // 👈 DAFTAR BLOKIR
+  
   const halaqahMilikGuru = daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
   const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
   const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
 
   const ujianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === kelasAktif);
+  // Sort ujian by time so the Report Card columns are chronological
+  ujianKelasIni.sort((a, b) => new Date(a.waktuMulai) - new Date(b.waktuMulai));
+
   const soalTampil = bankSoal.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranTampil = setoran.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
+  
+  // Ambil semua setoran untuk kelas ini (untuk Buku Rapor)
+  const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
 
   useEffect(() => {
      if (!kelasAktif && halaqahMilikGuru.length > 0) setKelasAktif(halaqahMilikGuru[0].kode);
@@ -77,6 +85,40 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     return () => unsubForum();
   }, [kelasAktif]);
 
+  // 👈 LOGIKA BUKU RAPOR & SISWA
+  const daftarSiswaUnik = Array.from(new Set([
+     ...setoranKelasIni.map(s => JSON.stringify({ email: s.email, nama: s.nama })),
+     ...semuaPesan.filter(p => p.peran === 'siswa').map(p => JSON.stringify({ email: p.email, nama: p.nama }))
+  ])).map(str => JSON.parse(str));
+
+  const rekapRapor = daftarSiswaUnik.map(siswa => {
+     let totalSkor = 0;
+     const nilaiPerUjian = {};
+     ujianKelasIni.forEach(ujian => {
+        const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
+        const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
+        nilaiPerUjian[ujian.docId] = skor;
+        totalSkor += skor;
+     });
+     return { ...siswa, nilaiPerUjian, totalSkor };
+  });
+  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor); // Peringkat Umum
+
+  const blokirAkun = async (emailSiswa) => {
+     if(window.confirm(`Yakin ingin memblokir permanen ${emailSiswa}?\nMurid ini tidak akan bisa masuk ke kelas Anda lagi.`)) {
+        const listBaru = [...daftarBlokirAman, emailSiswa.toLowerCase()];
+        await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarBlokir: listBaru });
+     }
+  };
+
+  const bukaBlokir = async (emailSiswa) => {
+     if(window.confirm(`Buka blokir untuk ${emailSiswa}?`)) {
+        const listBaru = daftarBlokirAman.filter(e => e !== emailSiswa.toLowerCase());
+        await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarBlokir: listBaru });
+     }
+  };
+
+
   const [editUjianId, setEditUjianId] = useState(null);
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: ''
@@ -93,7 +135,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            alert("✅ Jadwal Ujian Berhasil Diupdate!");
            setEditUjianId(null);
         } else {
-           // 👈 LOGIKA BARU: Otomatis memilih ujian yang baru dibuat agar layar soal kosong
            const docRef = await addDoc(collection(db, "ujian"), {
               ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
            });
@@ -106,12 +147,9 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const editUjian = (ujian) => {
      setFormUjian({
-        judul: ujian.judul || '',
-        durasi: ujian.durasi || 60,
-        waktuMulai: ujian.waktuMulai || '',
-        waktuSelesai: ujian.waktuSelesai || '',
-        tipeTarget: ujian.tipeTarget || 'semua',
-        targetSiswa: ujian.targetSiswa || ''
+        judul: ujian.judul || '', durasi: ujian.durasi || 60,
+        waktuMulai: ujian.waktuMulai || '', waktuSelesai: ujian.waktuSelesai || '',
+        tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || ''
      });
      setEditUjianId(ujian.docId);
   };
@@ -342,14 +380,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Jadwal & Soal</button>
           <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'forum' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>💬 Forum Kelas</button>
           <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoranTampil.length})</button>
-          <button onClick={() => {setTabAdmin('peringkat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'peringkat' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>🏆 Peringkat</button>
+          
+          {/* 👈 TAB BARU: RAPOR & SISWA */}
+          <button onClick={() => {setTabAdmin('rapor'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'rapor' ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>📊 Data Siswa & Rapor</button>
+
           {isSuperAdmin && (
              <button onClick={() => {setTabAdmin('guru'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'guru' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>👥 Kelola Guru</button>
           )}
         </div>
       </div>
 
-      {/* FILTER KELAS GLOBAL */}
       {halaqahMilikGuru.length > 0 && tabAdmin !== 'guru' && (
          <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800 mb-6 flex flex-wrap gap-4">
             <div className="flex-1 min-w-[200px]">
@@ -359,7 +399,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                </select>
             </div>
             
-            {tabAdmin !== 'forum' && (
+            {tabAdmin !== 'forum' && tabAdmin !== 'rapor' && (
             <div className="flex-1 min-w-[200px]">
                <label className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest block mb-1">2. Pilih Jadwal Ujian:</label>
                <select value={ujianAktifAdmin} onChange={(e) => setUjianAktifAdmin(e.target.value)} className="w-full p-3 bg-white dark:bg-slate-700 text-orange-800 dark:text-white font-bold text-sm rounded-xl outline-none focus:ring-2 ring-orange-400 cursor-pointer shadow-sm border border-slate-200 dark:border-slate-600">
@@ -373,6 +413,76 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       {halaqahMilikGuru.length === 0 && tabAdmin !== 'buat' && tabAdmin !== 'guru' && (
          <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-8 text-center rounded-3xl font-bold border-2 border-dashed border-red-200 dark:border-red-800">
             🚨 Anda belum membuat Kelas (Halaqah) apapun. Silakan masuk ke tab "➕ Buat Jadwal & Kelas".
+         </div>
+      )}
+
+      {/* ===================== TAB BARU: DATA SISWA & RAPOR ===================== */}
+      {tabAdmin === 'rapor' && halaqahMilikGuru.length > 0 && (
+         <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+               <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mb-6">📊 Buku Rapor & Daftar Siswa Aktif</h2>
+               
+               <div className="overflow-x-auto pb-4 custom-scrollbar">
+                  <table className="w-full text-left border-collapse whitespace-nowrap min-w-[800px]">
+                     <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs uppercase tracking-widest border-b-2 border-slate-200 dark:border-slate-600">
+                           <th className="p-4 font-black rounded-tl-xl">No</th>
+                           
+                           {/* 👇 FITUR KOLOM BEKU (STICKY) UNTUK HEADER NAMA */}
+                           <th className="p-4 font-black sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nama Siswa</th>
+                           
+                           <th className="p-4 font-black border-r border-slate-200 dark:border-slate-600">Email (ID)</th>
+                           {ujianKelasIni.map((u, i) => (
+                              <th key={i} className="p-4 font-black text-center text-indigo-600 dark:text-indigo-400">{u.judul}</th>
+                           ))}
+                           <th className="p-4 font-black text-center text-emerald-600 dark:text-emerald-400 border-l border-slate-200 dark:border-slate-600">Skor Total</th>
+                           <th className="p-4 font-black text-center rounded-tr-xl text-red-500">Aksi</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        {rekapRapor.length === 0 ? (
+                           <tr>
+                              <td colSpan={5 + ujianKelasIni.length} className="p-8 text-center text-slate-400 italic">Belum ada murid yang bergabung atau mengerjakan ujian.</td>
+                           </tr>
+                        ) : (
+                           rekapRapor.map((siswa, idx) => (
+                              <tr key={idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+                                 <td className="p-4 font-bold text-slate-400">{idx + 1}</td>
+                                 
+                                 {/* 👇 FITUR KOLOM BEKU (STICKY) UNTUK ISI NAMA SISWA */}
+                                 <td className="p-4 font-black text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                                    {siswa.nama} {idx===0 && <span className="text-lg ml-1">🥇</span>} {idx===1 && <span className="text-lg ml-1">🥈</span>} {idx===2 && <span className="text-lg ml-1">🥉</span>}
+                                 </td>
+
+                                 <td className="p-4 text-xs font-bold text-slate-500 border-r border-slate-100 dark:border-slate-700">{siswa.email}</td>
+                                 {ujianKelasIni.map((u, i) => (
+                                    <td key={i} className="p-4 font-bold text-center text-slate-700 dark:text-slate-300">{siswa.nilaiPerUjian[u.docId] > 0 ? siswa.nilaiPerUjian[u.docId] : '-'}</td>
+                                 ))}
+                                 <td className="p-4 font-black text-center text-emerald-500 text-lg border-l border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/10">{siswa.totalSkor}</td>
+                                 <td className="p-4 text-center">
+                                    <button onClick={() => blokirAkun(siswa.email)} className="bg-red-100 text-red-600 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Blokir Akun</button>
+                                 </td>
+                              </tr>
+                           ))
+                        )}
+                     </tbody>
+                  </table>
+               </div>
+            </div>
+
+            {daftarBlokirAman.length > 0 && (
+               <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 p-6 rounded-3xl">
+                  <h3 className="text-red-600 dark:text-red-400 font-black mb-3">⛔ Daftar Akun Murid yang Diblokir</h3>
+                  <div className="flex flex-wrap gap-3">
+                     {daftarBlokirAman.map((email, idx) => (
+                        <div key={idx} className="bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                           <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{email}</span>
+                           <button onClick={() => bukaBlokir(email)} className="text-[10px] font-black bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded">Buka Blokir</button>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            )}
          </div>
       )}
 
@@ -527,7 +637,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   </div>
 
                   <div className={`p-3 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
-                     {/* 👈 LABEL TARGET DIUBAH MENJADI EMAIL MURID */}
                      <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Kosongkan jika untuk semua):</label>
                      <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik Email Murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
                   </div>
@@ -660,7 +769,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   <div key={soal.docId} className={`p-5 rounded-3xl border relative shadow-sm group transition-all ${editId === soal.docId ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-300 dark:border-orange-600' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
                     <div className="absolute top-4 right-4 flex gap-2">
                        <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
-                       <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-500 hover:text-white transition-colors">🗑️</button>
+                       <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-50 hover:text-white transition-colors">🗑️</button>
                     </div>
                     <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.replace(/_/g, ' ')}</span>
                     
@@ -706,7 +815,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                             </div>
                             <div>
                                <h3 className="font-black text-slate-800 dark:text-white text-lg leading-tight">{s.nama}</h3>
-                               {/* 👈 KODE SISWA DIUBAH JADI EMAIL DI EVALUASI */}
                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Email: {s.email.split('@')[0]} • ⏱️ {formatWaktuTampil(s.waktuPengerjaan)}</p>
                             </div>
                          </div>
