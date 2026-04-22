@@ -77,7 +77,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     return () => unsubForum();
   }, [kelasAktif]);
 
-  // 👈 KEMBALI KOSONG SESUAI PERMINTAAN ANDA
+  const [editUjianId, setEditUjianId] = useState(null);
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: ''
   });
@@ -86,17 +86,41 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      e.preventDefault();
      if(!kelasAktif) return alert("Pilih kelas dulu!");
      try {
-        await addDoc(collection(db, "ujian"), {
-           ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
-        });
-        alert("Jadwal Ujian Berhasil Dibuat!");
+        if (editUjianId) {
+           await updateDoc(doc(db, "ujian", editUjianId), {
+              ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
+           });
+           alert("✅ Jadwal Ujian Berhasil Diupdate!");
+           setEditUjianId(null);
+        } else {
+           await addDoc(collection(db, "ujian"), {
+              ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
+           });
+           alert("✅ Jadwal Ujian Berhasil Dibuat!");
+        }
         setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });
-     } catch(err) { alert("Gagal buat ujian."); }
+     } catch(err) { alert("❌ Gagal menyimpan ujian."); }
+  };
+
+  const editUjian = (ujian) => {
+     setFormUjian({
+        judul: ujian.judul || '',
+        durasi: ujian.durasi || 60,
+        waktuMulai: ujian.waktuMulai || '',
+        waktuSelesai: ujian.waktuSelesai || '',
+        tipeTarget: ujian.tipeTarget || 'semua',
+        targetSiswa: ujian.targetSiswa || ''
+     });
+     setEditUjianId(ujian.docId);
   };
 
   const hapusUjian = async (docId) => {
-     if(window.confirm("Hapus ujian ini? Semua soal di dalamnya akan terputus!")) {
+     if(window.confirm("⚠️ YAKIN HAPUS UJIAN INI?\nSemua soal di dalamnya akan terputus dari jadwal!")) {
         await deleteDoc(doc(db, "ujian", docId));
+        if(editUjianId === docId) {
+           setEditUjianId(null);
+           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });
+        }
      }
   };
 
@@ -475,34 +499,40 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                </div>
             </div>
 
-            <div className="bg-orange-800 dark:bg-orange-900 p-6 rounded-3xl shadow-lg border border-transparent dark:border-orange-700 transition-colors">
-               <h2 className="text-sm font-black text-white mb-2">2. Jadwalkan Ujian untuk Kelas Aktif</h2>
+            <div className={`p-6 rounded-3xl shadow-lg border-2 transition-colors ${editUjianId ? 'bg-yellow-900 border-yellow-500' : 'bg-orange-800 dark:bg-orange-900 border-transparent dark:border-orange-700'}`}>
+               <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-sm font-black text-white">{editUjianId ? '✏️ Edit Jadwal Ujian' : '2. Jadwalkan Ujian untuk Kelas Aktif'}</h2>
+                  {editUjianId && <button type="button" onClick={() => {setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '' });}} className="text-xs text-red-300 hover:text-red-100 underline">Batal Edit</button>}
+               </div>
+               
                <form onSubmit={handleBuatUjian} className="space-y-3 mb-4">
-                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Harian 1)" required className="w-full p-3 bg-orange-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border border-orange-300 dark:border-slate-600 focus:border-orange-500" />
+                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Harian 1)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
                   
-                  {/* FIX WARNA DATE PICKER AGAR IKON KALENDER MUNCUL JELAS */}
+                  {/* PENAMBAHAN KELAS CSS "dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:dark:invert" AGAR KALENDER MUNCUL TERANG DI MODE GELAP */}
                   <div className="flex gap-2">
                      <div className="flex-1">
-                        <label className="text-[10px] text-orange-300 font-bold uppercase mb-1 block">Waktu Mulai:</label>
-                        <input type="datetime-local" value={formUjian.waktuMulai} onChange={e=>setFormUjian({...formUjian, waktuMulai: e.target.value})} required className="w-full p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-xs border border-orange-200 dark:border-slate-600 focus:ring-2 ring-orange-400 cursor-pointer block" style={{ colorScheme: 'light dark' }} />
+                        <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-200' : 'text-orange-300'}`}>Waktu Mulai:</label>
+                        <input type="datetime-local" value={formUjian.waktuMulai} onChange={e=>setFormUjian({...formUjian, waktuMulai: e.target.value})} required className={`w-full p-3 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border cursor-pointer block dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:dark:invert ${editUjianId ? 'border-yellow-400 focus:ring-yellow-500' : 'border-orange-300 dark:border-slate-600 focus:ring-2 ring-orange-400'}`} />
                      </div>
                      <div className="flex-1">
-                        <label className="text-[10px] text-orange-300 font-bold uppercase mb-1 block">Batas Selesai:</label>
-                        <input type="datetime-local" value={formUjian.waktuSelesai} onChange={e=>setFormUjian({...formUjian, waktuSelesai: e.target.value})} required className="w-full p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-xs border border-orange-200 dark:border-slate-600 focus:ring-2 ring-orange-400 cursor-pointer block" style={{ colorScheme: 'light dark' }} />
+                        <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-200' : 'text-orange-300'}`}>Batas Selesai:</label>
+                        <input type="datetime-local" value={formUjian.waktuSelesai} onChange={e=>setFormUjian({...formUjian, waktuSelesai: e.target.value})} required className={`w-full p-3 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border cursor-pointer block dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:dark:invert ${editUjianId ? 'border-yellow-400 focus:ring-yellow-500' : 'border-orange-300 dark:border-slate-600 focus:ring-2 ring-orange-400'}`} />
                      </div>
                   </div>
 
                   <div className="flex gap-2 items-center pt-2">
-                     <input type="number" value={formUjian.durasi} onChange={e=>setFormUjian({...formUjian, durasi: e.target.value})} min="1" required className="w-20 p-3 bg-orange-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border border-orange-300 dark:border-slate-600 text-center" />
-                     <span className="text-xs font-bold text-orange-200">Menit (Durasi Mengerjakan)</span>
+                     <input type="number" value={formUjian.durasi} onChange={e=>setFormUjian({...formUjian, durasi: e.target.value})} min="1" required className={`w-20 p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border text-center ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
+                     <span className={`text-xs font-bold ${editUjianId ? 'text-yellow-100' : 'text-orange-200'}`}>Menit (Durasi Mengerjakan)</span>
                   </div>
 
-                  <div className="p-3 bg-orange-900/50 rounded-xl border border-orange-700 mt-2">
-                     <label className="text-[10px] text-orange-300 font-bold uppercase mb-1 block">Target Murid (Kosongkan jika untuk semua):</label>
-                     <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik NIS murid (Pisahkan dgn koma)" className="w-full p-3 bg-orange-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border border-orange-300 dark:border-slate-600" />
+                  <div className={`p-3 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
+                     <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Kosongkan jika untuk semua):</label>
+                     <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik NIS murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
                   </div>
 
-                  <button type="submit" className="w-full py-3 bg-orange-500 text-white font-black rounded-xl hover:bg-orange-400 transition-colors text-sm shadow-md mt-2">Buat Jadwal Ujian</button>
+                  <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-2 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
+                     {editUjianId ? '🔄 Update Jadwal Ujian' : 'Buat Jadwal Ujian'}
+                  </button>
                </form>
 
                <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
@@ -510,12 +540,15 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <div className="text-center p-3 border border-dashed border-orange-700 rounded-xl"><p className="text-xs text-orange-400 font-bold">Belum ada ujian di kelas ini.</p></div>
                   ) : (
                      ujianKelasIni.map((u, i) => (
-                       <div key={i} className="flex justify-between items-center bg-orange-950 p-3 rounded-xl border border-orange-700">
+                       <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${editUjianId === u.docId ? 'bg-yellow-950 border-yellow-400' : 'bg-orange-950 border-orange-700'}`}>
                           <div>
                              <p className="text-white font-bold text-xs">{u.judul}</p>
-                             <p className="text-[10px] text-orange-400">{u.durasi} Mnt • {u.targetSiswa ? 'Khusus' : 'Semua Murid'}</p>
+                             <p className={`text-[10px] ${editUjianId === u.docId ? 'text-yellow-400' : 'text-orange-400'}`}>{u.durasi} Mnt • {u.targetSiswa ? 'Khusus' : 'Semua Murid'}</p>
                           </div>
-                          <button onClick={() => hapusUjian(u.docId)} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Hapus</button>
+                          <div className="flex gap-1">
+                             <button onClick={() => editUjian(u)} className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Edit</button>
+                             <button onClick={() => hapusUjian(u.docId)} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Hapus</button>
+                          </div>
                        </div>
                      ))
                   )}
