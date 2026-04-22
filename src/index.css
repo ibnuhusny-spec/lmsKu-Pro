@@ -1,12 +1,23 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: 'Arabic Typesetting';
-  src: local('Arabic Typesetting');
+/* SAKELAR UTAMA MODE GELAP UNTUK TAILWIND VERSI 4 */
+@custom-variant dark (&:is(.dark *));
+
+/* Desain Teks Arab agar tetap besar dan cantik */
+.teks-arab-besar {
+  font-size: 1.75rem;
+  line-height: 2.5rem;
+  font-family: 'Amiri', 'Traditional Arabic', serif;
 }
 
-.teks-arab-besar {
-  font-family: 'Arabic Typesetting', serif;
-  font-size: 2.5rem;
-  line-height: 2.2;
+/* Desain Scrollbar agar elegan */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #475569;
 }
