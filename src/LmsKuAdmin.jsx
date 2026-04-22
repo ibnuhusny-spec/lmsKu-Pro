@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 
@@ -17,7 +17,7 @@ const formatWaktuTampil = (detik) => {
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
 
-const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
+const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin, emailAdmin }) => {
   const [tabAdmin, setTabAdmin] = useState('buat'); 
   const [isSaving, setIsSaving] = useState(false);
   const [setoranTerpilih, setSetoranTerpilih] = useState(null);
@@ -25,9 +25,22 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
   
   const [nilaiManual, setNilaiManual] = useState("");
   const [skorPerSoal, setSkorPerSoal] = useState({});
+
+  // FITUR ISOLASI KELAS (Hanya menampilkan kelas milik guru ini)
+  const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
+  const halaqahMilikGuru = daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
-  // STATE BARU UNTUK FILTER PAPAN PERINGKAT
-  const [filterPeringkat, setFilterPeringkat] = useState('Semua');
+  // State Kelas Aktif yang sedang dikelola
+  const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
+
+  // Otomatis memilih kelas pertama jika ada perubahan
+  useEffect(() => {
+     if (!kelasAktif && halaqahMilikGuru.length > 0) setKelasAktif(halaqahMilikGuru[0].kode);
+  }, [halaqahMilikGuru, kelasAktif]);
+
+  // FILTER SOAL & EVALUASI BERDASARKAN KELAS AKTIF
+  const soalKelasIni = bankSoal.filter(s => s.kodeHalaqah === kelasAktif);
+  const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
 
   const [form, setForm] = useState({
     tipe: 'pilihan_ganda', bahasa: 'id', jumlahOpsi: 4,
@@ -105,20 +118,24 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
 
   const handleSimpanSoal = async (e) => {
     e.preventDefault();
+    if (!kelasAktif) return alert('Pilih atau Buat Kelas terlebih dahulu di tab Pengaturan!');
     if (!form.teksSoal && !form.mediaSoalGambar && !form.mediaSoalSuara) return alert('Soal tidak boleh kosong!');
     if (form.tipe === 'pilihan_ganda' && form.kunci.length !== 1) return alert('Pilih 1 kunci!');
     if (form.tipe === 'pilihan_ganda_kompleks' && form.kunci.length !== 2) return alert('Pilih tepat 2 kunci!');
     if (form.tipe === 'isian' && (!form.kunci || form.kunci.length === 0)) return alert('Kunci isian kosong!');
-    if (form.tipe === 'uraian' && !form.izinUraian.teks && !form.izinUraian.gambar && !form.izinUraian.suara) return alert('Pilih minimal satu cara menjawab untuk siswa (Teks/Gambar/Suara)!');
+    if (form.tipe === 'uraian' && !form.izinUraian.teks && !form.izinUraian.gambar && !form.izinUraian.suara) return alert('Pilih minimal satu cara menjawab untuk siswa!');
 
     setIsSaving(true);
     try {
-      if (editId) await updateDoc(doc(db, "soal", editId), { ...form });
-      else await addDoc(collection(db, "soal"), { ...form, id: Date.now() });
+      // 👈 KODE SOAL DIIKAT DENGAN KELAS AKTIF
+      const finalData = { ...form, kodeHalaqah: kelasAktif }; 
+
+      if (editId) await updateDoc(doc(db, "soal", editId), finalData);
+      else await addDoc(collection(db, "soal"), { ...finalData, id: Date.now() });
       
       setForm({ tipe: 'pilihan_ganda', bahasa: 'id', jumlahOpsi: 4, teksSoal: '', teksTambahanArab: '', opsiA: '', opsiB: '', opsiC: '', opsiD: '', opsiE: '', kunci: [], mediaSoalGambar: null, mediaSoalSuara: null, izinUraian: { teks: true, gambar: true, suara: true } });
       setEditId(null);
-    } catch (error) { alert("❌ Gagal Simpan: " + error.message); } 
+    } catch (error) { alert("❌ Gagal Simpan."); } 
     finally { setIsSaving(false); }
   };
 
@@ -136,21 +153,23 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
     const namaHalaqah = e.target.namaHalaqah.value.trim();
     if (!namaHalaqah) return;
     const kodeBaru = generateKodeAcak();
-    const listBaru = [...(pengaturan.daftarHalaqah || []), { nama: namaHalaqah, kode: kodeBaru }];
+    // 👈 KELAS BARU DIIKAT DENGAN EMAIL GURU
+    const listBaru = [...daftarHalaqahAman, { nama: namaHalaqah, kode: kodeBaru, emailGuru: emailAdmin }];
     await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarHalaqah: listBaru });
     e.target.reset();
   };
 
   const hapusHalaqah = async (kode) => {
-    if(window.confirm("Hapus kode halaqah ini? Murid dengan kode ini tidak akan bisa login lagi.")) {
-      const listBaru = (pengaturan.daftarHalaqah || []).filter(h => h.kode !== kode);
+    if(window.confirm("Hapus kelas ini? Soal dan Murid yang terikat dengan kelas ini tidak bisa diakses lagi.")) {
+      const listBaru = daftarHalaqahAman.filter(h => h.kode !== kode);
       await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarHalaqah: listBaru });
+      if (kelasAktif === kode) setKelasAktif('');
     }
   };
 
   const salinKode = (kode) => {
      navigator.clipboard.writeText(kode);
-     alert(`✅ Kode "${kode}" berhasil disalin! Silakan bagikan ke murid.`);
+     alert(`✅ Kode Kelas "${kode}" berhasil disalin! Silakan bagikan ke murid.`);
   };
 
   const bukaEvaluasi = (s) => { 
@@ -178,63 +197,66 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
          nilaiSistemAsli: setoranTerpilih.nilaiSistemAsli 
       });
       setSetoranTerpilih({...setoranTerpilih, nilaiSistem: Number(nilaiManual), skorPerSoal});
-      alert("✅ Nilai akhir beserta rinciannya berhasil disimpan!");
-    } catch(e) { alert("Gagal update nilai: " + e.message); }
+      alert("✅ Nilai akhir diupdate!");
+    } catch(e) { alert("Gagal update nilai."); }
   };
 
   const hapusSetoran = async (docId) => { if(window.confirm("Hapus hasil ujian murid ini?")) { await deleteDoc(doc(db, "setoran", docId)); if(setoranTerpilih && setoranTerpilih.docId === docId) setSetoranTerpilih(null); } };
-  const hapusSemuaSetoran = async () => { if(window.confirm("⚠️ Yakin ingin menghapus SELURUH data evaluasi murid?")) { for (const s of setoran) { await deleteDoc(doc(db, "setoran", s.docId)); } setSetoranTerpilih(null); alert("Bersih."); } };
-
-  const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
-  
-  // Variabel untuk memfilter daftar kelas di Papan Peringkat
-  const halaqahDitampilkan = filterPeringkat === 'Semua' 
-    ? daftarHalaqahAman 
-    : daftarHalaqahAman.filter(h => h.nama === filterPeringkat);
+  const hapusSemuaSetoran = async () => { if(window.confirm("⚠️ Yakin ingin menghapus SELURUH data evaluasi di kelas ini?")) { for (const s of setoranKelasIni) { await deleteDoc(doc(db, "setoran", s.docId)); } setSetoranTerpilih(null); alert("Bersih."); } };
 
   return (
     <div className="p-4 md:p-8 font-sans max-w-7xl mx-auto pb-32">
+      
+      {/* HEADER ISOLASI GURU */}
+      <div className="bg-indigo-600 dark:bg-indigo-900 text-white p-4 rounded-3xl mb-6 shadow-md flex flex-wrap justify-between items-center transition-colors">
+         <div>
+            <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Ruang Kerja Eksklusif Guru</p>
+            <p className="font-black text-lg">{emailAdmin}</p>
+         </div>
+         <button onClick={keLogin} className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all">🚪 Log Out</button>
+      </div>
+
       <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-700 pb-4 gap-4 transition-colors">
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Soal & Kelas</button>
-          <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoran.length})</button>
+          <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoranKelasIni.length})</button>
           <button onClick={() => {setTabAdmin('peringkat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm transition-all ${tabAdmin === 'peringkat' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>🏆 Peringkat</button>
         </div>
-        <button onClick={keLogin} className="text-red-500 dark:text-red-400 font-bold text-sm bg-red-50 dark:bg-red-900/30 px-4 py-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">Log Out Admin</button>
       </div>
 
-      {/* ===================== TAB BUAT SOAL ===================== */}
+      {/* JIKA BELUM ADA KELAS SAMA SEKALI */}
+      {halaqahMilikGuru.length === 0 && tabAdmin !== 'buat' && (
+         <div className="bg-red-50 text-red-600 p-8 text-center rounded-3xl font-bold border-2 border-dashed border-red-200">
+            🚨 Anda belum membuat Kelas (Halaqah) apapun. Silakan masuk ke tab "➕ Buat Soal & Kelas" untuk membuatnya terlebih dahulu.
+         </div>
+      )}
+
       {tabAdmin === 'buat' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-6">
-            
             <div className="bg-slate-800 dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-transparent dark:border-slate-700 space-y-6 transition-colors">
                <div>
-                 <h2 className="text-lg font-black text-white mb-4">⚙️ Pengaturan Kuis</h2>
+                 <h2 className="text-lg font-black text-white mb-4">⚙️ Pengaturan Kuis Utama</h2>
                  <form onSubmit={simpanPengaturanUtama} className="space-y-3">
                    <input name="judulKuis" defaultValue={pengaturan.judul} className="w-full p-3 bg-slate-700 text-white rounded-xl outline-none font-bold text-sm border border-slate-600 focus:border-indigo-400" placeholder="Nama Kuis" />
                    <div className="flex items-center gap-2">
                      <input type="number" name="durasiKuis" defaultValue={pengaturan.durasi} min="1" className="flex-1 p-3 bg-slate-700 text-white rounded-xl outline-none font-bold text-sm border border-slate-600 focus:border-indigo-400" placeholder="Durasi" />
                      <span className="text-white font-bold text-sm">Menit</span>
                    </div>
-                   <button type="submit" className="w-full py-3 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-400 transition-colors text-sm">Simpan Pengaturan</button>
+                   <button type="submit" className="w-full py-3 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-400 transition-colors text-sm">Simpan Kuis Utama</button>
                  </form>
                </div>
-
                <div className="border-t border-slate-600 pt-6">
-                 <h2 className="text-sm font-black text-white mb-2">Manajemen Kode Kelas</h2>
-                 <p className="text-[10px] text-slate-400 mb-4 font-bold">Buat kelas/halaqah untuk mendapatkan kode masuk yang akan dibagikan ke murid.</p>
-                 
+                 <h2 className="text-sm font-black text-white mb-2">Manajemen Kode Kelas (Milik Anda)</h2>
                  <form onSubmit={tambahHalaqahBaru} className="flex gap-2 mb-4">
-                    <input name="namaHalaqah" placeholder="Nama Kelas / Halaqah..." required className="flex-1 p-3 bg-slate-700 text-white rounded-xl outline-none font-bold text-sm border border-slate-600 focus:border-emerald-400" />
+                    <input name="namaHalaqah" placeholder="Nama Kelas Baru..." required className="flex-1 p-3 bg-slate-700 text-white rounded-xl outline-none font-bold text-sm border border-slate-600 focus:border-emerald-400" />
                     <button type="submit" className="bg-emerald-500 text-white font-black px-4 rounded-xl hover:bg-emerald-400 transition-colors">+</button>
                  </form>
-
                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                    {daftarHalaqahAman.length === 0 ? (
-                       <div className="text-center p-4 border border-dashed border-slate-600 rounded-xl"><p className="text-xs text-slate-400 font-bold">Belum ada kode kelas.</p></div>
+                    {halaqahMilikGuru.length === 0 ? (
+                       <div className="text-center p-4 border border-dashed border-slate-600 rounded-xl"><p className="text-xs text-slate-400 font-bold">Belum ada kelas.</p></div>
                     ) : (
-                       daftarHalaqahAman.map((h, i) => (
+                       halaqahMilikGuru.map((h, i) => (
                          <div key={i} className="flex flex-col bg-slate-700 p-3 rounded-xl border border-slate-600">
                             <div className="flex justify-between items-center mb-2">
                                <p className="text-white font-bold text-xs">{h.nama}</p>
@@ -251,7 +273,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
                </div>
             </div>
 
+            {/* FORM ARSITEK SOAL DENGAN PILIHAN KELAS */}
             <div className={`bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border-2 h-fit transition-colors ${editId ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/10' : 'border-slate-100 dark:border-slate-700'}`}>
+              <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 mb-6">
+                 <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block mb-1">Tujuan Soal Dibuat Untuk Kelas:</label>
+                 <select value={kelasAktif} onChange={(e) => setKelasAktif(e.target.value)} className="w-full p-2 bg-white dark:bg-slate-700 text-indigo-800 dark:text-white font-bold text-sm rounded outline-none cursor-pointer">
+                    {halaqahMilikGuru.length === 0 && <option value="">-- Buat Kelas Dulu --</option>}
+                    {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama} ({h.kode})</option>)}
+                 </select>
+              </div>
+
               <div className="flex justify-between items-center mb-4">
                  <h2 className="text-lg font-black text-slate-800 dark:text-white tracking-tight">{editId ? '✏️ Mode Edit' : '➕ Arsitek Soal'}</h2>
                  {editId && <button onClick={() => {setEditId(null); setForm({...form, tipe: 'pilihan_ganda', teksSoal: ''})}} className="text-xs font-bold text-red-500 dark:text-red-400 underline">Batal Edit</button>}
@@ -261,7 +292,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
                 <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
                   <select name="tipe" value={form.tipe} onChange={handleChangeTipe} className="w-full p-2 bg-white dark:bg-slate-700 rounded-lg font-bold text-xs outline-none text-indigo-700 dark:text-indigo-300 border border-slate-200 dark:border-slate-600 focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors">
                     <option value="pilihan_ganda">1. Pilihan Ganda (1 Jawaban Benar)</option>
-                    <option value="pilihan_ganda_kompleks">2. Ganda Kompleks (Wajib 2 Jawaban Benar)</option>
+                    <option value="pilihan_ganda_kompleks">2. Ganda Kompleks (Wajib 2 Benar)</option>
                     <option value="isian">3. Isian Singkat</option>
                     <option value="uraian">4. Uraian Bebas (Super-Soal)</option>
                   </select>
@@ -272,7 +303,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
 
                 {form.tipe === 'uraian' && (
                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-3 transition-colors">
-                     <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal (Opsional):</p>
+                     <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal:</p>
                      <div className="flex gap-2">
                         <label className="flex-1 text-center bg-purple-500 text-white py-2 rounded-lg font-bold text-xs cursor-pointer hover:bg-purple-600 shadow-sm transition-colors">📸 Foto <input type="file" accept="image/*" className="hidden" onChange={handleUploadGambarAdmin}/></label>
                         <button type="button" onClick={isRecordingAdmin ? stopRecordingAdmin : startRecordingAdmin} className={`flex-1 text-center py-2 rounded-lg font-bold text-xs transition-colors shadow-sm ${isRecordingAdmin ? 'bg-red-500 text-white animate-pulse' : 'bg-pink-500 text-white hover:bg-pink-600'}`}>
@@ -340,9 +371,13 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
           </div>
 
           <div className="lg:col-span-7 space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
-             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2">Bank Soal ({bankSoal.length})</h2>
-             {bankSoal.length === 0 && <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center text-slate-400 font-medium transition-colors">Belum ada soal.</div>}
-             {bankSoal.map((soal, idx) => (
+             <h2 className="text-sm font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2">
+                Bank Soal Kelas Ini ({soalKelasIni.length})
+             </h2>
+             {soalKelasIni.length === 0 && <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center text-slate-400 font-medium transition-colors">Belum ada soal di kelas ini.</div>}
+             
+             {/* MENGGUNAKAN SOAL KELAS INI BUKAN BANK SOAL GLOBAL */}
+             {soalKelasIni.map((soal, idx) => (
                 <div key={soal.docId} className={`p-5 rounded-3xl border relative shadow-sm group transition-all ${editId === soal.docId ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-300 dark:border-orange-600' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
                   <div className="absolute top-4 right-4 flex gap-2">
                      <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
@@ -370,20 +405,27 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
       )}
 
       {/* ===================== TAB EVALUASI ===================== */}
-      {tabAdmin === 'koreksi' && (
+      {tabAdmin === 'koreksi' && halaqahMilikGuru.length > 0 && (
         <div className="bg-white dark:bg-slate-800 p-4 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
+          <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 mb-6 w-fit">
+             <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block mb-1">Filter Evaluasi Kelas:</label>
+             <select value={kelasAktif} onChange={(e) => setKelasAktif(e.target.value)} className="w-full p-2 bg-white dark:bg-slate-700 text-indigo-800 dark:text-white font-bold text-sm rounded outline-none cursor-pointer">
+                {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama}</option>)}
+             </select>
+          </div>
+
           {!setoranTerpilih ? (
              <>
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4 transition-colors">
                   <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Evaluasi Jawaban Murid</h2>
-                  {setoran.length > 0 && (
+                  {setoranKelasIni.length > 0 && (
                      <button onClick={hapusSemuaSetoran} className="text-xs font-bold bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800 px-4 py-2 rounded-xl hover:bg-red-500 hover:text-white transition-colors">🗑️ Bersihkan Semua Data</button>
                   )}
                </div>
 
-               {setoran.length === 0 ? <div className="text-center py-20 text-slate-400 font-bold border-4 border-dashed dark:border-slate-700 rounded-3xl">Belum ada setoran masuk.</div> : (
+               {setoranKelasIni.length === 0 ? <div className="text-center py-20 text-slate-400 font-bold border-4 border-dashed dark:border-slate-700 rounded-3xl">Belum ada setoran masuk dari kelas ini.</div> : (
                  <div className="flex flex-col gap-3">
-                    {setoran.map((s) => (
+                    {setoranKelasIni.map((s) => (
                       <div key={s.docId} className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl hover:border-indigo-300 transition-all shadow-sm gap-4">
                          <div className="flex items-center gap-4 w-full md:w-auto">
                             <div className="bg-white dark:bg-slate-800 border-2 border-indigo-100 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black text-2xl w-14 h-14 flex flex-col items-center justify-center rounded-2xl shadow-sm leading-none transition-colors">
@@ -421,7 +463,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
                </div>
 
                <div className="space-y-6">
-                 {bankSoal.map((soal, index) => {
+                 {soalKelasIni.map((soal, index) => {
                    const jawabanMurid = setoranTerpilih.jawaban?.[index];
                    
                    if (soal.tipe === 'uraian') {
@@ -449,7 +491,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
                             <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl flex items-center justify-between shadow-inner transition-colors">
                                <div>
                                   <p className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Beri Poin Soal Ini:</p>
-                                  <p className="text-[9px] text-orange-500 font-bold">Ditambahkan ke Skor Utama ⬆️</p>
                                </div>
                                <div className="flex items-center gap-2">
                                   <span className="text-xl font-black text-orange-500">+</span>
@@ -498,53 +539,43 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, keLogin }) => {
         </div>
       )}
 
-      {/* ===================== TAB PERINGKAT ===================== */}
-      {tabAdmin === 'peringkat' && (
+      {/* TAB PERINGKAT TERISOLASI BERDASARKAN KELAS GURU TERSEBUT */}
+      {tabAdmin === 'peringkat' && halaqahMilikGuru.length > 0 && (
         <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
              <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Papan Peringkat</h2>
-             {daftarHalaqahAman.length > 0 && (
-               <select value={filterPeringkat} onChange={(e) => setFilterPeringkat(e.target.value)} className="p-3 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-white font-bold text-sm border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:ring-2 ring-indigo-400 transition-colors">
-                 <option value="Semua">Tampilkan Semua Kelas</option>
-                 {daftarHalaqahAman.map((h, i) => <option key={i} value={h.nama}>{h.nama}</option>)}
-               </select>
-             )}
           </div>
           
-          {daftarHalaqahAman.length === 0 ? (
-            <div className="text-center py-20 text-slate-400 font-bold border-4 border-dashed dark:border-slate-700 rounded-3xl">Belum ada halaqah yang didaftarkan.</div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {halaqahDitampilkan.map((h, i) => {
-                const peringkatHalaqah = setoran.filter(s => s.halaqah === h.nama && s.kuisJudul === pengaturan.judul).sort((a, b) => b.nilaiSistem - a.nilaiSistem || (a.waktuPengerjaan || 9999) - (b.waktuPengerjaan || 9999));
-                return (
-                  <div key={i} className="bg-slate-50 dark:bg-slate-700 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-600 transition-colors">
-                    <h3 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase mb-1 tracking-widest">{h.nama}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 mb-4">Kode Kelas: {h.kode}</p>
-                    
-                    {peringkatHalaqah.length === 0 ? (
-                       <p className="text-xs text-slate-400 dark:text-slate-500 italic">Belum ada murid yang selesai.</p>
-                    ) : (
-                       <div className="space-y-3">
-                         {peringkatHalaqah.map((murid, idx) => (
-                           <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700 shadow-sm hover:border-yellow-300 dark:hover:border-yellow-500 transition-all">
-                              <div className="flex items-center gap-4">
-                                 <span className="text-3xl drop-shadow-sm">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : <span className="bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300 text-sm font-black w-8 h-8 flex items-center justify-center rounded-full">{idx+1}</span>}</span>
-                                 <div>
-                                    <p className="font-bold text-slate-800 dark:text-white">{murid.nama}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Waktu: <span className="text-indigo-500 dark:text-indigo-400">{formatWaktuTampil(murid.waktuPengerjaan)}</span></p>
-                                 </div>
-                              </div>
-                              <span className="text-2xl font-black text-emerald-500">{murid.nilaiSistem}</span>
-                           </div>
-                         ))}
-                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {halaqahMilikGuru.map((h, i) => {
+              const peringkatHalaqah = setoran.filter(s => s.kodeHalaqah === h.kode && s.kuisJudul === pengaturan.judul).sort((a, b) => b.nilaiSistem - a.nilaiSistem || (a.waktuPengerjaan || 9999) - (b.waktuPengerjaan || 9999));
+              return (
+                <div key={i} className="bg-slate-50 dark:bg-slate-700 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-600 transition-colors">
+                  <h3 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase mb-1 tracking-widest">{h.nama}</h3>
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 mb-4">Kode Kelas: {h.kode}</p>
+                  
+                  {peringkatHalaqah.length === 0 ? (
+                     <p className="text-xs text-slate-400 dark:text-slate-500 italic">Belum ada murid yang selesai.</p>
+                  ) : (
+                     <div className="space-y-3">
+                       {peringkatHalaqah.map((murid, idx) => (
+                         <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700 shadow-sm hover:border-yellow-300 dark:hover:border-yellow-500 transition-all">
+                            <div className="flex items-center gap-4">
+                               <span className="text-3xl drop-shadow-sm">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : <span className="bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300 text-sm font-black w-8 h-8 flex items-center justify-center rounded-full">{idx+1}</span>}</span>
+                               <div>
+                                  <p className="font-bold text-slate-800 dark:text-white">{murid.nama}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Waktu: <span className="text-indigo-500 dark:text-indigo-400">{formatWaktuTampil(murid.waktuPengerjaan)}</span></p>
+                               </div>
+                            </div>
+                            <span className="text-2xl font-black text-emerald-500">{murid.nilaiSistem}</span>
+                         </div>
+                       ))}
+                     </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

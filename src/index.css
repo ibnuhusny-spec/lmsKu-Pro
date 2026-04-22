@@ -21,3 +21,26 @@
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #475569;
 }
+
+/* --- LOGIKA CETAK BUKTI UJIAN (PRINT MEDIA) --- */
+@media print {
+  body * {
+    visibility: hidden; /* Sembunyikan semua elemen web */
+  }
+  .area-cetak, .area-cetak * {
+    visibility: visible; /* Hanya tampilkan area sertifikat */
+  }
+  .area-cetak {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important; /* Sembunyikan tombol saat dicetak */
+  }
+}
