@@ -36,12 +36,15 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const [timeLeft, setTimeLeft] = useState(durasiMaksimal);
   const hasSubmitted = useRef(false);
   
-  // 👈 REF UNTUK MELACAK JUMLAH PELANGGARAN MURID
-  const pelanggaran = useRef(0);
+  const keyPelanggaran = `strike_${ujianAktif?.docId}_${user?.email}`;
+  const pelanggaran = useRef(parseInt(localStorage.getItem(keyPelanggaran) || '0'));
+  const waktuPelanggaranTerakhir = useRef(0);
 
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
 
-  // WAKTU MUNDUR
+  // 👈 LOGIKA POIN YANG BISA DIATUR
+  const poinSet = Number(ujianAktif.poinBenar) || 10;
+
   useEffect(() => {
     if (!isMulai || isSelesai) return;
     const timer = setInterval(() => {
@@ -61,16 +64,21 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     return () => clearInterval(timer);
   }, [isMulai, isSelesai]);
 
-  // 👈 LOGIKA SISTEM PENGAWAS UJIAN (PROCTORING)
   useEffect(() => {
      if (!isMulai || isSelesai || !ujianAktif.kunciLayar) return;
 
      const catatPelanggaran = () => {
+        const sekarang = Date.now();
+        if (sekarang - waktuPelanggaranTerakhir.current < 2000) return;
+        waktuPelanggaranTerakhir.current = sekarang;
+
         pelanggaran.current += 1;
+        localStorage.setItem(keyPelanggaran, pelanggaran.current.toString()); 
+
         if (pelanggaran.current === 1) {
-           alert("⚠️ PERINGATAN KERAS!\nAnda terdeteksi keluar dari layar ujian atau membuka aplikasi/tab lain.\n\nJika Anda melakukan ini sekali lagi, sistem akan MENGUMPULKAN UJIAN ANDA SECARA OTOMATIS!");
+           alert("⚠️ PERINGATAN KERAS!\nAnda terdeteksi keluar dari layar ujian atau membuka aplikasi/tab lain.\n\nJika Anda keluar satu kali lagi, sistem akan MENGUMPULKAN UJIAN ANDA SECARA OTOMATIS!");
         } else if (pelanggaran.current >= 2) {
-           alert("⛔ PELANGGARAN FATAL!\nAnda telah keluar dari layar ujian lebih dari batas yang diizinkan. Ujian Anda diakhiri secara otomatis!");
+           alert("⛔ PELANGGARAN FATAL!\nAnda telah keluar dari aplikasi lebih dari batas yang diizinkan. Ujian Anda diakhiri secara otomatis!");
            if (!hasSubmitted.current) submitTugas(true);
         }
      };
@@ -94,11 +102,19 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   }, [isMulai, isSelesai, ujianAktif.kunciLayar]);
 
   const mulaiUjian = async () => { 
+     if (ujianAktif.kunciLayar && pelanggaran.current >= 2) {
+        alert("⛔ UJIAN DIBATALKAN!\nAnda telah tercatat melakukan pelanggaran fatal (keluar aplikasi/layar) pada percobaan sebelumnya.\n\nSistem akan mengumpulkan kertas ujian Anda apa adanya secara otomatis sekarang.");
+        setIsMulai(true);
+        setWaktuMulai(Date.now());
+        setTimeLeft(0);
+        submitTugas(true);
+        return;
+     }
+
      setIsMulai(true); 
      setWaktuMulai(Date.now()); 
      setTimeLeft(durasiMaksimal); 
      
-     // 👈 PAKSA MASUK MODE FULLSCREEN JIKA UJIAN KETAT
      if (ujianAktif.kunciLayar) {
         try { await document.documentElement.requestFullscreen(); } 
         catch (e) { console.log("Layar perangkat tidak mendukung Fullscreen otomatis."); }
@@ -160,7 +176,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     setIsSubmitting(true);
     hasSubmitted.current = true;
 
-    // 👈 KELUAR DARI LAYAR PENUH SAAT UJIAN SELESAI
     if (document.fullscreenElement) {
        document.exitFullscreen().catch(err => console.log(err));
     }
@@ -170,19 +185,23 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       const jwb = jawabanPeserta[index];
       if (!jwb) return;
 
+      // 👈 LOGIKA MENGHITUNG DENGAN POIN FLEKSIBEL
       if (soal.tipe === 'pilihan_ganda') {
-        if (jwb === soal.kunci[0]) skorTotal += 10; 
+        if (jwb === soal.kunci[0] || jwb === soal.kunci) skorTotal += poinSet; 
       } 
       else if (soal.tipe === 'pilihan_ganda_kompleks') {
         const kunciAsli = Array.isArray(soal.kunci) ? soal.kunci : [];
         const jwbMurid = Array.isArray(jwb) ? jwb : [jwb];
         const benar = jwbMurid.filter(item => kunciAsli.includes(item)).length;
         const salah = jwbMurid.filter(item => !kunciAsli.includes(item)).length;
-        let poin = (benar * 5) - (salah * 5);
+        
+        // Poin per kunci dibagi 2 (karena selalu 2 jawaban benar)
+        const poinPerKunci = poinSet / 2;
+        let poin = (benar * poinPerKunci) - (salah * poinPerKunci);
         skorTotal += Math.max(0, poin); 
       }
       else if (soal.tipe === 'isian') {
-        if (typeof jwb === 'string' && jwb.trim().toLowerCase() === soal.kunci?.trim().toLowerCase()) skorTotal += 10; 
+        if (typeof jwb === 'string' && jwb.trim().toLowerCase() === soal.kunci?.trim().toLowerCase()) skorTotal += poinSet; 
       }
     });
 
@@ -204,9 +223,10 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         tanggalReal: new Date().toISOString(), 
         kuisJudul: ujianAktif.judul 
       });
+      localStorage.removeItem(keyPelanggaran);
       setIsSelesai(true);
     } catch (e) { 
-      alert("❌ GAGAL MENGIRIM! Pastikan ukuran rekaman tidak terlalu besar."); 
+      alert("❌ GAGAL MENGIRIM JAWABAN KE SERVER!"); 
       hasSubmitted.current = false;
     }
     setIsSubmitting(false);
