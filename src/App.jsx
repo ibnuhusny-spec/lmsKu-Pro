@@ -3,7 +3,7 @@ import LmsKuLobi from './LmsKuLobi';
 import LmsKuQuiz from './LmsKuQuiz';
 import LmsKuAdmin from './LmsKuAdmin';
 import { db, auth, googleProvider } from './firebase';
-import { collection, onSnapshot, doc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'; // 👈 Tambahan setDoc
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 function App() {
@@ -46,7 +46,7 @@ function App() {
            durasi: data.durasi || 5, 
            daftarHalaqah: data.daftarHalaqah || [],
            daftarGuru: data.daftarGuru || [],
-           daftarBlokir: data.daftarBlokir || [] // 👈 DATABASE BUKU HITAM
+           daftarBlokir: data.daftarBlokir || [] 
         });
       }
     });
@@ -117,7 +117,6 @@ function App() {
     const data = new FormData(e.target);
     const kodeMasuk = data.get('kodeMasuk').toUpperCase().trim();
     
-    // 👈 SISTEM CEKAL OTOMATIS JIKA MURID DIBLOKIR GURU
     if (pengaturan.daftarBlokir && pengaturan.daftarBlokir.includes(googleUser.email.toLowerCase())) {
        return alert("⛔ AKSES DITOLAK!\nAkun Anda telah diblokir secara permanen dari sistem oleh Guru/Admin.");
     }
@@ -132,6 +131,14 @@ function App() {
        halaqah: halaqahDitemukan.nama,
        kodeHalaqah: halaqahDitemukan.kode
     };
+
+    // 👈 BUKU ABSEN OTOMATIS: Mendaftarkan murid secara permanen ke database
+    setDoc(doc(db, "anggota", `${halaqahDitemukan.kode}_${googleUser.email}`), {
+       kodeHalaqah: halaqahDitemukan.kode,
+       email: googleUser.email,
+       nama: data.get('nama'),
+       waktuGabung: Date.now()
+    }, { merge: true }).catch(err => console.log("Gagal mencatat absen", err));
 
     setUser(sesiBaru);
     localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(sesiBaru)); 
@@ -207,7 +214,6 @@ function App() {
                     <button type="button" onClick={handleLogoutGmail} className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg font-bold text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors shadow-sm">Ganti Akun</button>
                  </div>
                  
-                 {/* 👈 FIX MARGIN: -mb-2 DIUBAH MENJADI mb-1 AGAR TIDAK TERTIMPA */}
                  <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Nama Anda di Kelas</label>
                     <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none focus:ring-2 ring-indigo-200 font-bold text-sm border border-transparent dark:border-slate-600" />

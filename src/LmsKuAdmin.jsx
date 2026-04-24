@@ -38,6 +38,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [pesanText, setPesanText] = useState('');
   const [gambarUploadForum, setGambarUploadForum] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
+  const [semuaAnggota, setSemuaAnggota] = useState([]); // 👈 MENYIMPAN DAFTAR ANGGOTA
   const [editForumId, setEditForumId] = useState(null);
   const [teksEditForum, setTeksEditForum] = useState('');
   const scrollRef = useRef(null);
@@ -70,6 +71,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   }, [kelasAktif, ujianKelasIni]);
 
+  // 👈 MENYEDOT BUKU ABSEN (ANGGOTA) DAN FORUM
   useEffect(() => {
     if(!kelasAktif) return;
     const unsubForum = onSnapshot(collection(db, "forum"), (snap) => {
@@ -79,13 +81,22 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       setSemuaPesan(pesanKelasIni);
       setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
     });
-    return () => unsubForum();
+
+    const unsubAnggota = onSnapshot(collection(db, "anggota"), (snap) => {
+      let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+      setSemuaAnggota(data.filter(d => d.kodeHalaqah === kelasAktif));
+    });
+
+    return () => { unsubForum(); unsubAnggota(); };
   }, [kelasAktif]);
 
-  const daftarSiswaUnik = Array.from(new Set([
-     ...setoranKelasIni.map(s => JSON.stringify({ email: s.email, nama: s.nama })),
-     ...semuaPesan.filter(p => p.peran === 'siswa').map(p => JSON.stringify({ email: p.email, nama: p.nama }))
-  ])).map(str => JSON.parse(str));
+  // 👈 MENGGABUNGKAN SELURUH DATA MURID UNTUK BUKU RAPOR DAN CENTANG TARGET
+  const daftarSiswaUnikMap = new Map();
+  semuaAnggota.forEach(a => daftarSiswaUnikMap.set(a.email, { email: a.email, nama: a.nama }));
+  setoranKelasIni.forEach(s => daftarSiswaUnikMap.set(s.email, { email: s.email, nama: s.nama }));
+  semuaPesan.filter(p => p.peran === 'siswa').forEach(p => daftarSiswaUnikMap.set(p.email, { email: p.email, nama: p.nama }));
+  
+  const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
 
   const rekapRapor = daftarSiswaUnik.map(siswa => {
      let totalSkor = 0;
@@ -115,8 +126,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   };
 
   const [editUjianId, setEditUjianId] = useState(null);
-  
-  // 👈 FITUR POIN PER SOAL DITAMBAHKAN DI SINI
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10
   });
@@ -263,7 +272,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       if (editId) await updateDoc(doc(db, "soal", editId), finalData);
       else await addDoc(collection(db, "soal"), { ...finalData, id: Date.now() });
       
-      // 👈 FITUR BARU: HANYA MERESET TEKS SAJA. TIPE SOAL & BAHASA TETAP MENETAP!
       setForm(prev => ({ 
          ...prev, 
          teksSoal: '', teksTambahanArab: '', 
@@ -278,7 +286,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const editSoal = (soal) => { setForm(soal); setEditId(soal.docId); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   
-  // 👈 FITUR BARU: TOMBOL SALIN (COPY) SOAL
   const salinSoal = (soal) => {
      setForm({
         tipe: soal.tipe, bahasa: soal.bahasa, jumlahOpsi: soal.jumlahOpsi,
@@ -287,7 +294,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         kunci: soal.kunci, mediaSoalGambar: soal.mediaSoalGambar || null, mediaSoalSuara: soal.mediaSoalSuara || null,
         izinUraian: soal.izinUraian || { teks: true, gambar: true, suara: true }
      });
-     setEditId(null); // Dipaksa NULL agar sistem menganggap ini SOAL BARU, bukan mengedit.
+     setEditId(null); 
      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -495,7 +502,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          </div>
       )}
 
-      {/* 👈 FIX UI KELOLA GURU DI LAYAR HP */}
       {tabAdmin === 'guru' && isSuperAdmin && (
         <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
           <div className="max-w-2xl mx-auto">
@@ -504,13 +510,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                 <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Otorisasi Guru Admin</h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Daftarkan email guru di bawah ini agar mereka diizinkan masuk ke panel admin.</p>
              </div>
-             
-             {/* Penambahan md:gap-3 dan shrink-0 agar tidak tergencet di HP */}
              <form onSubmit={tambahGuru} className="flex gap-2 md:gap-3 mb-8">
                 <input name="emailGuru" type="email" placeholder="Contoh: guru1@gmail.com" required className="flex-1 min-w-0 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" />
                 <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-black px-4 md:px-6 rounded-2xl transition-colors shadow-lg active:scale-95 shrink-0 text-sm md:text-base">Daftarkan</button>
              </form>
-
              <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-700">
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 ml-2">Daftar Guru Terdaftar ({(pengaturan.daftarGuru || []).length})</p>
                 <div className="space-y-3">
@@ -631,7 +634,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                </div>
                
                <form onSubmit={handleBuatUjian} className="space-y-3 mb-4">
-                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Harian 1)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
+                  <input type="text" value={formUjian.judul} onChange={e=>setFormUjian({...formUjian, judul: e.target.value})} placeholder="Judul Ujian (Cth: Ujian Akhir Semester)" required className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border focus:ring-2 ${editUjianId ? 'bg-yellow-50 border-yellow-400 ring-yellow-500' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600 focus:border-orange-500'}`} />
                   
                   <div className="flex gap-2">
                      <div className="flex-1">
@@ -644,7 +647,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      </div>
                   </div>
 
-                  {/* 👈 FITUR BARU: POIN PER SOAL BISA DIATUR */}
                   <div className="flex gap-2 items-center pt-2">
                      <input type="number" value={formUjian.durasi} onChange={e=>setFormUjian({...formUjian, durasi: e.target.value})} min="1" required className={`w-16 md:w-20 p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border text-center ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
                      <span className={`text-[10px] md:text-xs font-bold ${editUjianId ? 'text-yellow-100' : 'text-orange-200'}`}>Menit</span>
@@ -653,9 +655,35 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <span className={`text-[10px] md:text-xs font-bold ${editUjianId ? 'text-yellow-100' : 'text-orange-200'}`}>Poin/Soal</span>
                   </div>
 
-                  <div className={`p-3 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
-                     <label className={`text-[10px] font-bold uppercase mb-1 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Kosongkan jika untuk semua):</label>
-                     <input type="text" value={formUjian.targetSiswa} onChange={e=>setFormUjian({...formUjian, targetSiswa: e.target.value})} placeholder="Ketik Email Murid (Pisahkan dgn koma)" className={`w-full p-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-xs border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`} />
+                  {/* 👈 FITUR BARU: CENTANG TARGET MURID DENGAN CHECKBOX */}
+                  <div className={`p-4 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
+                     <label className={`text-[10px] font-bold uppercase mb-2 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Siapa yang boleh ikut?):</label>
+                     <select value={formUjian.tipeTarget} onChange={e => setFormUjian({...formUjian, tipeTarget: e.target.value, targetSiswa: ''})} className={`w-full p-3 mb-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`}>
+                        <option value="semua">Semua Murid di Kelas Ini</option>
+                        <option value="khusus">Hanya Murid Tertentu (Pilih di bawah)</option>
+                     </select>
+                     
+                     {formUjian.tipeTarget === 'khusus' && (
+                        <div className="bg-black/20 p-3 rounded-xl border border-white/10 max-h-40 overflow-y-auto custom-scrollbar space-y-2">
+                           {daftarSiswaUnik.length === 0 ? <p className="text-xs text-white/50 italic">Belum ada murid yang bergabung di kelas ini.</p> : daftarSiswaUnik.map(siswa => {
+                              const isChecked = formUjian.targetSiswa.includes(siswa.email);
+                              return (
+                                 <label key={siswa.email} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-lg cursor-pointer transition-colors">
+                                    <input type="checkbox" checked={isChecked} onChange={(e) => {
+                                       let arr = formUjian.targetSiswa ? formUjian.targetSiswa.split(',') : [];
+                                       if (e.target.checked) arr.push(siswa.email);
+                                       else arr = arr.filter(mail => mail !== siswa.email);
+                                       setFormUjian({...formUjian, targetSiswa: arr.join(',')});
+                                    }} className="w-4 h-4 accent-orange-500" />
+                                    <div className="flex flex-col">
+                                       <span className="text-sm font-bold text-white leading-tight">{siswa.nama}</span>
+                                       <span className="text-[10px] text-white/60">{siswa.email}</span>
+                                    </div>
+                                 </label>
+                              )
+                           })}
+                        </div>
+                     )}
                   </div>
 
                   <label className={`flex items-center gap-3 cursor-pointer mt-4 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
@@ -796,7 +824,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                {soalTampil.map((soal, idx) => (
                   <div key={soal.docId} className={`p-5 rounded-3xl border relative shadow-sm group transition-all ${editId === soal.docId ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-300 dark:border-orange-600' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
                     <div className="absolute top-4 right-4 flex gap-2">
-                       {/* 👈 FITUR TOMBOL SALIN SOAL */}
                        <button onClick={() => salinSoal(soal)} className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-500 hover:text-white transition-colors" title="Salin Soal">📋</button>
                        <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
                        <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-50 hover:text-white transition-colors">🗑️</button>

@@ -195,7 +195,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         const benar = jwbMurid.filter(item => kunciAsli.includes(item)).length;
         const salah = jwbMurid.filter(item => !kunciAsli.includes(item)).length;
         
-        // Poin per kunci dibagi 2 (karena selalu 2 jawaban benar)
         const poinPerKunci = poinSet / 2;
         let poin = (benar * poinPerKunci) - (salah * poinPerKunci);
         skorTotal += Math.max(0, poin); 
@@ -348,7 +347,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              <div className="mb-6 space-y-3 border-2 border-dashed border-indigo-100 dark:border-indigo-800 p-4 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/20 transition-colors">
                 <p className="text-[10px] font-black text-indigo-400 dark:text-indigo-500 uppercase text-center tracking-widest">Lampiran Soal:</p>
                 {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="max-h-48 mx-auto rounded-lg shadow-sm border border-white dark:border-slate-700" />}
-                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="w-full h-10 shadow-sm rounded-full" />}
+                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 shadow-sm rounded-full" />}
              </div>
           )}
 
