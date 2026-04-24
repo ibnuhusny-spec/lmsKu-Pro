@@ -41,8 +41,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const waktuPelanggaranTerakhir = useRef(0);
 
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
-
-  // 👈 LOGIKA POIN YANG BISA DIATUR
   const poinSet = Number(ujianAktif.poinBenar) || 10;
 
   useEffect(() => {
@@ -185,7 +183,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       const jwb = jawabanPeserta[index];
       if (!jwb) return;
 
-      // 👈 LOGIKA MENGHITUNG DENGAN POIN FLEKSIBEL
       if (soal.tipe === 'pilihan_ganda') {
         if (jwb === soal.kunci[0] || jwb === soal.kunci) skorTotal += poinSet; 
       } 
@@ -195,16 +192,22 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         const benar = jwbMurid.filter(item => kunciAsli.includes(item)).length;
         const salah = jwbMurid.filter(item => !kunciAsli.includes(item)).length;
         
-        const poinPerKunci = poinSet / 2;
+        // 👈 FITUR PERHITUNGAN DINAMIS (TIDAK DIBATASI 2)
+        const poinPerKunci = poinSet / (kunciAsli.length || 1);
         let poin = (benar * poinPerKunci) - (salah * poinPerKunci);
         skorTotal += Math.max(0, poin); 
       }
       else if (soal.tipe === 'isian') {
-        if (typeof jwb === 'string' && jwb.trim().toLowerCase() === soal.kunci?.trim().toLowerCase()) skorTotal += poinSet; 
+        if (typeof jwb === 'string') {
+           const jawabanMurid = jwb.trim().toLowerCase();
+           // 👈 FITUR ISIAN BERGANDA DENGAN KOMA
+           const kunciArray = typeof soal.kunci === 'string' ? soal.kunci.split(',').map(k => k.trim().toLowerCase()) : [];
+           if (kunciArray.includes(jawabanMurid)) skorTotal += poinSet; 
+        }
       }
     });
 
-    const nilaiFinal = skorTotal; 
+    const nilaiFinal = Math.round(skorTotal); 
     const durasiPengerjaan = isAutoSubmit ? durasiMaksimal : Math.floor((Date.now() - waktuMulai) / 1000);
     setNilaiAkhir(nilaiFinal);
 
@@ -347,7 +350,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              <div className="mb-6 space-y-3 border-2 border-dashed border-indigo-100 dark:border-indigo-800 p-4 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/20 transition-colors">
                 <p className="text-[10px] font-black text-indigo-400 dark:text-indigo-500 uppercase text-center tracking-widest">Lampiran Soal:</p>
                 {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="max-h-48 mx-auto rounded-lg shadow-sm border border-white dark:border-slate-700" />}
-                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 shadow-sm rounded-full" />}
+                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="w-full h-10 shadow-sm rounded-full" />}
              </div>
           )}
 
@@ -355,6 +358,17 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
             <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white leading-relaxed">{renderTeks(soal.teksSoal)}</p>
             {soal.teksTambahanArab && <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-colors"><p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300" dir="rtl">{soal.teksTambahanArab}</p></div>}
           </div>
+
+          {/* 👈 PAPAN PERINGATAN GANDA KOMPLEKS */}
+          {soal.tipe === 'pilihan_ganda_kompleks' && (
+             <div className="mb-4 bg-sky-50 dark:bg-sky-900/30 p-3 rounded-xl border border-sky-100 dark:border-sky-800 flex items-center gap-3">
+                <span className="text-2xl">💡</span>
+                <div>
+                   <p className="text-xs font-black text-sky-700 dark:text-sky-400 uppercase">Petunjuk Khusus</p>
+                   <p className="text-sm font-medium text-sky-800 dark:text-sky-300">Soal ini membutuhkan <strong>{Array.isArray(soal.kunci) ? soal.kunci.length : 2} Jawaban Benar</strong>. Silakan centang semuanya!</p>
+                </div>
+             </div>
+          )}
 
           {soal.tipe.startsWith('pilihan_ganda') && (
             <div className="space-y-3">

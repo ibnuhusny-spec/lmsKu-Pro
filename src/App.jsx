@@ -3,7 +3,7 @@ import LmsKuLobi from './LmsKuLobi';
 import LmsKuQuiz from './LmsKuQuiz';
 import LmsKuAdmin from './LmsKuAdmin';
 import { db, auth, googleProvider } from './firebase';
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'; // 👈 Tambahan setDoc
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore'; // 👈 Tambah deleteDoc
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 function App() {
@@ -106,7 +106,16 @@ function App() {
      setHalaman('splash'); 
   };
 
-  const handleKeluarKelas = () => {
+  // 👈 FITUR KELUAR KELAS (PERMANEN / SEMENTARA)
+  const handleKeluarKelas = async (isPermanen = false) => {
+     if (isPermanen && user) {
+        if(window.confirm("⚠️ YAKIN INGIN KELUAR DARI KELAS INI?\nAnda tidak akan terdaftar lagi sebagai murid di kelas ini sampai Anda memasukkan Kode Kelas kembali.")) {
+           try { await deleteDoc(doc(db, "anggota", `${user.kodeHalaqah}_${user.email}`)); } 
+           catch(e) { console.log(e); }
+        } else {
+           return; // Batal keluar
+        }
+     }
      localStorage.removeItem('lmsku_sesi_siswa'); 
      setUser(null);
      setHalaman('login_siswa');
@@ -132,7 +141,6 @@ function App() {
        kodeHalaqah: halaqahDitemukan.kode
     };
 
-    // 👈 BUKU ABSEN OTOMATIS: Mendaftarkan murid secara permanen ke database
     setDoc(doc(db, "anggota", `${halaqahDitemukan.kode}_${googleUser.email}`), {
        kodeHalaqah: halaqahDitemukan.kode,
        email: googleUser.email,

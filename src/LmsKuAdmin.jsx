@@ -109,27 +109,26 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   });
   rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
 
-  // 👈 FITUR TAMBAH SISWA MANUAL KE DATABASE
   const tambahSiswaManual = async (e) => {
      e.preventDefault();
      const namaInput = e.target.namaSiswa.value.trim();
      const emailInput = e.target.emailSiswa.value.trim().toLowerCase();
-     
      if(!namaInput || !emailInput || !kelasAktif) return;
-
      try {
         await setDoc(doc(db, "anggota", `${kelasAktif}_${emailInput}`), {
-           kodeHalaqah: kelasAktif,
-           email: emailInput,
-           nama: namaInput,
-           waktuGabung: Date.now(),
-           ditambahkanManual: true
+           kodeHalaqah: kelasAktif, email: emailInput, nama: namaInput, waktuGabung: Date.now(), ditambahkanManual: true
         }, { merge: true });
-        
-        alert(`✅ Siswa atas nama ${namaInput} berhasil ditambahkan secara manual ke kelas ini!`);
-        e.target.reset();
-     } catch (err) {
-        alert("Gagal menambahkan siswa manual.");
+        alert(`✅ Siswa ${namaInput} ditambahkan manual!`); e.target.reset();
+     } catch (err) { alert("Gagal."); }
+  };
+
+  // 👈 FITUR KELUARKAN SISWA DARI KELAS TANPA DIBLOKIR
+  const keluarkanSiswa = async (emailSiswa) => {
+     if(window.confirm(`Keluarkan ${emailSiswa} dari kelas ini?\n\nSiswa tersebut masih bisa masuk kembali dengan mengetik Kode Kelas Anda.`)) {
+        try {
+           await deleteDoc(doc(db, "anggota", `${kelasAktif}_${emailSiswa.toLowerCase()}`));
+           alert("✅ Siswa berhasil dikeluarkan dari absensi kelas.");
+        } catch(e) { alert("Gagal mengeluarkan siswa."); }
      }
   };
 
@@ -157,17 +156,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      if(!kelasAktif) return alert("Pilih kelas dulu!");
      try {
         if (editUjianId) {
-           await updateDoc(doc(db, "ujian", editUjianId), {
-              ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
-           });
-           alert("✅ Jadwal Ujian Berhasil Diupdate!");
-           setEditUjianId(null);
+           await updateDoc(doc(db, "ujian", editUjianId), { ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin });
+           alert("✅ Jadwal Ujian Berhasil Diupdate!"); setEditUjianId(null);
         } else {
-           const docRef = await addDoc(collection(db, "ujian"), {
-              ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin
-           });
-           setUjianAktifAdmin(docRef.id);
-           alert("✅ Jadwal Ujian Berhasil Dibuat!");
+           const docRef = await addDoc(collection(db, "ujian"), { ...formUjian, kodeHalaqah: kelasAktif, emailGuru: emailAdmin });
+           setUjianAktifAdmin(docRef.id); alert("✅ Jadwal Ujian Berhasil Dibuat!");
         }
         setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 });
      } catch(err) { alert("❌ Gagal menyimpan ujian."); }
@@ -175,10 +168,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const editUjian = (ujian) => {
      setFormUjian({
-        judul: ujian.judul || '', durasi: ujian.durasi || 60,
-        waktuMulai: ujian.waktuMulai || '', waktuSelesai: ujian.waktuSelesai || '',
-        tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || '',
-        kunciLayar: ujian.kunciLayar || false, poinBenar: ujian.poinBenar || 10
+        judul: ujian.judul || '', durasi: ujian.durasi || 60, waktuMulai: ujian.waktuMulai || '', waktuSelesai: ujian.waktuSelesai || '',
+        tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || '', kunciLayar: ujian.kunciLayar || false, poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
   };
@@ -186,10 +177,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const hapusUjian = async (docId) => {
      if(window.confirm("⚠️ YAKIN HAPUS UJIAN INI?\nSemua soal di dalamnya akan terputus dari jadwal!")) {
         await deleteDoc(doc(db, "ujian", docId));
-        if(editUjianId === docId) {
-           setEditUjianId(null);
-           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 });
-        }
+        if(editUjianId === docId) { setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 }); }
      }
   };
 
@@ -284,7 +272,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     if (!ujianAktifAdmin) return alert('Buat & Pilih Jadwal Ujian terlebih dahulu!');
     if (!form.teksSoal && !form.mediaSoalGambar && !form.mediaSoalSuara) return alert('Soal kosong!');
     if (form.tipe === 'pilihan_ganda' && form.kunci.length !== 1) return alert('Pilih 1 kunci!');
-    if (form.tipe === 'pilihan_ganda_kompleks' && form.kunci.length !== 2) return alert('Pilih 2 kunci!');
+    // 👈 BATAS MINIMAL DIUBAH JADI < 2 (BOLEH 2, 3, 4, atau 5)
+    if (form.tipe === 'pilihan_ganda_kompleks' && form.kunci.length < 2) return alert('Pilih minimal 2 kunci!');
     if (form.tipe === 'isian' && (!form.kunci || form.kunci.length === 0)) return alert('Kunci isian kosong!');
     
     setIsSaving(true);
@@ -344,7 +333,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      alert(`✅ Kode Kelas "${kode}" berhasil disalin! Silakan bagikan ke murid.`);
   };
 
-  // 👈 FITUR BARU: GENERATE TEXT UNDANGAN WA
   const salinUndanganWA = (halaqah) => {
      const urlAplikasi = window.location.origin;
      const teksWA = `🎓 *UNDANGAN KELAS VIRTUAL* 🎓\n\nHalo! Anda diundang untuk bergabung ke kelas *${halaqah.nama}* di portal pembelajaran kita.\n\nLangkah-langkah bergabung:\n1️⃣ Buka tautan: ${urlAplikasi}\n2️⃣ Klik tombol "Portal Siswa"\n3️⃣ Login dengan akun Google Anda\n4️⃣ Isi Nama Lengkap\n5️⃣ Masukkan Kode Kelas: *${halaqah.kode}*\n\nSelamat belajar dan sampai jumpa di kelas! 🚀`;
@@ -472,7 +460,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       {tabAdmin === 'rapor' && halaqahMilikGuru.length > 0 && (
          <div className="space-y-6">
             
-            {/* 👈 FORMULIR TAMBAH MURID MANUAL */}
             <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-[2rem] border border-teal-200 dark:border-teal-800 transition-colors">
                <h3 className="text-teal-700 dark:text-teal-400 font-black mb-3">➕ Tambah Siswa Manual</h3>
                <p className="text-xs text-teal-600 dark:text-teal-500 mb-4">Gunakan fitur ini jika ada murid yang kesulitan mendaftar mandiri. Masukkan namanya agar langsung masuk ke Buku Rapor & Daftar Target Ujian.</p>
@@ -518,7 +505,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                  ))}
                                  <td className="p-4 font-black text-center text-emerald-500 text-lg border-l border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/10">{siswa.totalSkor}</td>
                                  <td className="p-4 text-center">
-                                    <button onClick={() => blokirAkun(siswa.email)} className="bg-red-100 text-red-600 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Blokir Akun</button>
+                                    {/* 👈 TOMBOL KELUARKAN SISWA (TANPA BLOKIR) DITAMBAH DI SINI */}
+                                    <div className="flex gap-2 justify-center">
+                                       <button onClick={() => keluarkanSiswa(siswa.email)} className="bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Keluarkan</button>
+                                       <button onClick={() => blokirAkun(siswa.email)} className="bg-red-100 text-red-600 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Blokir Permanen</button>
+                                    </div>
                                  </td>
                               </tr>
                            ))
@@ -661,10 +652,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                           </div>
                           <div className="flex items-center gap-2">
                              <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center">{h.kode}</div>
-                             
-                             {/* 👈 TOMBOL SHARE UNDANGAN */}
                              <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Undangan</button>
-                             
                              <button onClick={() => salinKode(h.kode)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-400 transition-colors">📋 Salin</button>
                           </div>
                        </div>
@@ -784,7 +772,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
                     <select name="tipe" value={form.tipe} onChange={handleChangeTipe} className="w-full p-2 bg-white dark:bg-slate-700 rounded-lg font-bold text-xs outline-none text-indigo-700 dark:text-indigo-300 border border-slate-200 dark:border-slate-600 focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors">
                       <option value="pilihan_ganda">1. Pilihan Ganda (1 Jawaban Benar)</option>
-                      <option value="pilihan_ganda_kompleks">2. Ganda Kompleks (Wajib 2 Benar)</option>
+                      <option value="pilihan_ganda_kompleks">2. Ganda Kompleks (Bisa Lebih Dari 1 Benar)</option>
                       <option value="isian">3. Isian Singkat</option>
                       <option value="uraian">4. Uraian Bebas (Super-Soal)</option>
                     </select>
@@ -834,7 +822,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                             <span className="text-[10px] font-black text-slate-400 dark:text-slate-500">JUMLAH OPSI</span>
                             <select name="jumlahOpsi" value={form.jumlahOpsi} onChange={handleChange} className="p-1 rounded bg-white dark:bg-slate-600 dark:text-white text-xs font-bold border dark:border-slate-600 outline-none"><option value="3">3 Opsi</option><option value="4">4 Opsi</option></select>
                          </div>
-                      ) : (<p className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase mb-2">Wajib 5 Opsi (Ganda Kompleks)</p>)}
+                      ) : (<p className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase mb-2">Tidak Dibatasi Jumlah Jawaban Benarnya</p>)}
 
                       {['A', 'B', 'C', 'D', 'E'].slice(0, form.jumlahOpsi).map((label) => {
                         const isKunci = Array.isArray(form.kunci) ? form.kunci.includes(form[`opsi${label}`]) : form.kunci === form[`opsi${label}`];
@@ -848,10 +836,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     </div>
                   )}
 
+                  {/* 👈 FITUR KUNCI GANDA ISIAN DENGAN KOMA */}
                   {form.tipe === 'isian' && (
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800 transition-colors">
-                      <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-2 block">Kunci Jawaban Isian</label>
-                      <input type="text" name="kunci" value={Array.isArray(form.kunci) ? '' : form.kunci} onChange={(e) => setForm({...form, kunci: e.target.value})} dir={form.bahasa === 'ar' ? 'rtl' : 'ltr'} className="w-full p-3 bg-white dark:bg-slate-700 dark:text-white rounded-xl outline-none font-bold text-slate-700 border border-emerald-200 dark:border-emerald-700 focus:ring-2 ring-emerald-400 transition-colors" placeholder="Ketik jawaban pasti..." />
+                      <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-2 block">Kunci Jawaban Isian (Pisahkan dengan koma jika ada variasi jawaban)</label>
+                      <input type="text" name="kunci" value={Array.isArray(form.kunci) ? '' : form.kunci} onChange={(e) => setForm({...form, kunci: e.target.value})} dir={form.bahasa === 'ar' ? 'rtl' : 'ltr'} className="w-full p-3 bg-white dark:bg-slate-700 dark:text-white rounded-xl outline-none font-bold text-slate-700 border border-emerald-200 dark:border-emerald-700 focus:ring-2 ring-emerald-400 transition-colors" placeholder="Contoh: 17 Agustus 1945, 17-8-1945, 17 agustus 45" />
                     </div>
                   )}
 
@@ -989,8 +978,14 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                    const kunciAsli = Array.isArray(soal.kunci) ? soal.kunci : [soal.kunci];
                    const jawabanMuridArray = Array.isArray(jawabanMurid) ? jawabanMurid : (jawabanMurid ? [jawabanMurid] : []);
                    let isBenar = false;
-                   if (soal.tipe === 'isian') isBenar = jawabanMurid?.trim().toLowerCase() === soal.kunci?.trim().toLowerCase();
-                   else isBenar = (jawabanMuridArray.length === kunciAsli.length) && jawabanMuridArray.every(j => kunciAsli.includes(j)); 
+
+                   // 👈 EVALUASI KOREKSI MANUAL ISIAN JUGA MENDUKUNG KOMA
+                   if (soal.tipe === 'isian') {
+                      const kunciArray = typeof soal.kunci === 'string' ? soal.kunci.split(',').map(k => k.trim().toLowerCase()) : [];
+                      isBenar = typeof jawabanMurid === 'string' && kunciArray.includes(jawabanMurid.trim().toLowerCase());
+                   } else {
+                      isBenar = (jawabanMuridArray.length === kunciAsli.length) && jawabanMuridArray.every(j => kunciAsli.includes(j)); 
+                   }
 
                    return (
                      <div key={index} className={`p-5 rounded-2xl border-2 transition-colors ${isBenar ? 'border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-red-100 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10'}`}>
