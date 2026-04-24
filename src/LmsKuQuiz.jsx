@@ -192,7 +192,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         const benar = jwbMurid.filter(item => kunciAsli.includes(item)).length;
         const salah = jwbMurid.filter(item => !kunciAsli.includes(item)).length;
         
-        // 👈 FITUR PERHITUNGAN DINAMIS (TIDAK DIBATASI 2)
         const poinPerKunci = poinSet / (kunciAsli.length || 1);
         let poin = (benar * poinPerKunci) - (salah * poinPerKunci);
         skorTotal += Math.max(0, poin); 
@@ -200,7 +199,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       else if (soal.tipe === 'isian') {
         if (typeof jwb === 'string') {
            const jawabanMurid = jwb.trim().toLowerCase();
-           // 👈 FITUR ISIAN BERGANDA DENGAN KOMA
            const kunciArray = typeof soal.kunci === 'string' ? soal.kunci.split(',').map(k => k.trim().toLowerCase()) : [];
            if (kunciArray.includes(jawabanMurid)) skorTotal += poinSet; 
         }
@@ -272,50 +270,129 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      </div>
   );
 
+  // 👈 LOGIKA TAMPILAN SETELAH SELESAI UJIAN (SERTIFIKAT + HASIL KOREKSI)
   if (isSelesai) {
     const opsiTanggal = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     const tglSelesai = new Date().toLocaleDateString('id-ID', opsiTanggal);
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-20 area-cetak bg-slate-50 dark:bg-slate-900">
-        <div className="w-full max-w-md bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border-t-8 border-emerald-500 mb-6 transition-colors area-cetak">
-          <div className="mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
-             <span className="text-6xl mb-4 block">🎓</span>
-             <h1 className="text-2xl font-black mb-1 dark:text-white">Bukti Selesai Ujian</h1>
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{ujianAktif.judul}</p>
+      <div className="min-h-screen py-12 px-4 bg-slate-50 dark:bg-slate-900 font-sans">
+        <div className="max-w-3xl mx-auto flex flex-col items-center">
+          
+          {/* SERTIFIKAT */}
+          <div className="w-full bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border-t-8 border-emerald-500 mb-8 transition-colors area-cetak">
+            <div className="mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
+               <span className="text-6xl mb-4 block">🎓</span>
+               <h1 className="text-2xl font-black mb-1 dark:text-white">Bukti Selesai Ujian</h1>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{ujianAktif.judul}</p>
+            </div>
+
+            <div className="text-left space-y-3 mb-8">
+               <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Nama Peserta</p>
+                  <p className="font-bold text-slate-800 dark:text-white text-lg">{user.nama}</p>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Akun</p>
+                     <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.email.split('@')[0]}</p>
+                  </div>
+                  <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase">Waktu Selesai</p>
+                     <p className="font-bold text-slate-700 dark:text-slate-300">{tglSelesai}</p>
+                  </div>
+               </div>
+            </div>
+
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800 transition-colors">
+               <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Skor Dasar Anda</p>
+               <p className="font-black text-emerald-500 text-6xl drop-shadow-sm">{nilaiAkhir}</p>
+               {adaUraian && <p className="text-[10px] font-bold text-orange-500 mt-3">* Poin Uraian masih menunggu koreksi Guru</p>}
+            </div>
           </div>
 
-          <div className="text-left space-y-3 mb-8">
-             <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase">Nama Peserta</p>
-                <p className="font-bold text-slate-800 dark:text-white text-lg">{user.nama}</p>
-             </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Akun</p>
-                   <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.email.split('@')[0]}</p>
-                </div>
-                <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase">Waktu Selesai</p>
-                   <p className="font-bold text-slate-700 dark:text-slate-300">{tglSelesai}</p>
-                </div>
-             </div>
+          {/* 👈 LEMBAR KOREKSI OTOMATIS (TERMASUK DALAM CETAKAN) */}
+          <div className="w-full space-y-6 text-left area-cetak">
+            <div className="text-center mb-8 border-b border-slate-200 dark:border-slate-700 pb-6">
+               <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Lembar Koreksi Jawaban</h2>
+               <p className="text-xs font-bold text-slate-400 mt-1">Evaluasi mandiri hasil pekerjaan Anda</p>
+            </div>
+
+            {soalUjianIni.map((soal, index) => {
+               const jawabanMurid = jawabanPeserta[index];
+               
+               if (soal.tipe === 'uraian') {
+                  const jwb = jawabanMurid || {};
+                  return (
+                     <div key={index} className="p-5 rounded-2xl border-2 border-purple-100 dark:border-purple-900/50 bg-purple-50/30 dark:bg-purple-900/10 transition-colors break-inside-avoid shadow-sm">
+                        <div className="flex justify-between items-start mb-3">
+                           <span className="text-[10px] font-black bg-purple-200 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 px-2 py-1 rounded uppercase">Soal {index+1} (Uraian)</span>
+                           <span className="text-xs font-bold text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">⏳ Tunggu Guru</span>
+                        </div>
+                        <div className="mb-4">
+                           <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
+                           {soal.teksTambahanArab && <p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                           {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                           <span className="text-[10px] font-black text-slate-400 uppercase block mb-2 border-b dark:border-slate-700 pb-1">Jawaban Anda:</span>
+                           {jwb.teks ? <p className="font-bold text-indigo-700 dark:text-indigo-400 mb-2 whitespace-pre-wrap">{jwb.teks}</p> : <p className="text-xs text-slate-300 dark:text-slate-500 italic mb-2">Tidak ada teks</p>}
+                           {jwb.gambar && <img src={jwb.gambar} className="max-w-xs rounded-xl border-2 border-slate-200 dark:border-slate-600 mb-2" />}
+                           {!jwb.teks && !jwb.gambar && !jwb.suara && <p className="text-red-400 font-bold text-sm">Tidak dijawab.</p>}
+                        </div>
+                     </div>
+                  );
+               }
+
+               const kunciAsli = Array.isArray(soal.kunci) ? soal.kunci : [soal.kunci];
+               const jawabanMuridArray = Array.isArray(jawabanMurid) ? jawabanMurid : (jawabanMurid ? [jawabanMurid] : []);
+               let isBenar = false;
+
+               if (soal.tipe === 'isian') {
+                  const kunciArray = typeof soal.kunci === 'string' ? soal.kunci.split(',').map(k => k.trim().toLowerCase()) : [];
+                  isBenar = typeof jawabanMurid === 'string' && kunciArray.includes(jawabanMurid.trim().toLowerCase());
+               } else {
+                  isBenar = (jawabanMuridArray.length > 0 && jawabanMuridArray.length === kunciAsli.length) && jawabanMuridArray.every(j => kunciAsli.includes(j)); 
+               }
+
+               return (
+                  <div key={index} className={`p-5 rounded-2xl border-2 transition-colors break-inside-avoid shadow-sm ${isBenar ? 'border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-red-100 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10'}`}>
+                     <div className="flex justify-between items-start mb-3">
+                       <span className="text-[10px] font-black bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded uppercase">Soal {index + 1}</span>
+                       {isBenar ? <span className="text-sm font-bold bg-emerald-100 text-emerald-600 px-2 py-1 rounded">✅ Benar</span> : <span className="text-sm font-bold bg-red-100 text-red-600 px-2 py-1 rounded">❌ Salah</span>}
+                     </div>
+                     <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
+                       <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
+                       {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                       {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
+                     </div>
+                     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                         <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Jawaban Anda:</span>
+                         <span className={`font-bold ${isBenar ? 'text-emerald-600' : 'text-red-500'}`} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
+                            {jawabanMuridArray.length > 0 ? renderTeks(jawabanMuridArray.join(' | ')) : <i className="text-slate-300 dark:text-slate-600">Tidak dijawab</i>}
+                         </span>
+                       </div>
+                       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                         <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Kunci Sebenarnya:</span>
+                         <span className="font-bold text-indigo-600 dark:text-indigo-400" dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
+                            {kunciAsli.length > 0 ? renderTeks(kunciAsli.join(' | ')) : <i className="text-slate-300 dark:text-slate-600">Kosong</i>}
+                         </span>
+                       </div>
+                     </div>
+                  </div>
+               );
+            })}
           </div>
 
-          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800 transition-colors">
-             <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Skor Dasar Anda</p>
-             <p className="font-black text-emerald-500 text-6xl drop-shadow-sm">{nilaiAkhir}</p>
-             {adaUraian && <p className="text-[10px] font-bold text-orange-500 mt-3">* Poin Uraian masih menunggu koreksi Guru</p>}
+          <div className="w-full max-w-md mt-10 space-y-3 no-print">
+             <button onClick={() => window.print()} className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:translate-y-1 active:border-b-0 transition-all flex justify-center items-center gap-2">
+                🖨️ Cetak / Simpan PDF
+             </button>
+             <button onClick={keLobi} className="w-full py-4 bg-slate-200 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-200 rounded-2xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+                ← Kembali ke Lobi Kelas
+             </button>
           </div>
-        </div>
-
-        <div className="w-full max-w-md space-y-3 no-print">
-           <button onClick={() => window.print()} className="w-full py-4 bg-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-700 hover:bg-indigo-600 active:translate-y-1 active:border-b-0 transition-all flex justify-center items-center gap-2">
-              🖨️ Cetak / Download Bukti
-           </button>
-           <button onClick={keLobi} className="w-full py-4 bg-slate-200 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-200 rounded-2xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
-              ← Kembali ke Lobi Kelas
-           </button>
         </div>
       </div>
     );
@@ -356,10 +433,9 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
 
           <div className={`mb-6 ${isArab ? 'text-right' : 'text-left'}`} dir={isArab ? 'rtl' : 'ltr'}>
             <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white leading-relaxed">{renderTeks(soal.teksSoal)}</p>
-            {soal.teksTambahanArab && <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-colors"><p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300" dir="rtl">{soal.teksTambahanArab}</p></div>}
+            {soal.teksTambahanArab && <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-colors"><p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p></div>}
           </div>
 
-          {/* 👈 PAPAN PERINGATAN GANDA KOMPLEKS */}
           {soal.tipe === 'pilihan_ganda_kompleks' && (
              <div className="mb-4 bg-sky-50 dark:bg-sky-900/30 p-3 rounded-xl border border-sky-100 dark:border-sky-800 flex items-center gap-3">
                 <span className="text-2xl">💡</span>
