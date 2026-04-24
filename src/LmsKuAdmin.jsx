@@ -38,7 +38,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [pesanText, setPesanText] = useState('');
   const [gambarUploadForum, setGambarUploadForum] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
-  const [semuaAnggota, setSemuaAnggota] = useState([]); // 👈 MENYIMPAN DAFTAR ANGGOTA
+  const [semuaAnggota, setSemuaAnggota] = useState([]); 
   const [editForumId, setEditForumId] = useState(null);
   const [teksEditForum, setTeksEditForum] = useState('');
   const scrollRef = useRef(null);
@@ -71,7 +71,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   }, [kelasAktif, ujianKelasIni]);
 
-  // 👈 MENYEDOT BUKU ABSEN (ANGGOTA) DAN FORUM
   useEffect(() => {
     if(!kelasAktif) return;
     const unsubForum = onSnapshot(collection(db, "forum"), (snap) => {
@@ -90,7 +89,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     return () => { unsubForum(); unsubAnggota(); };
   }, [kelasAktif]);
 
-  // 👈 MENGGABUNGKAN SELURUH DATA MURID UNTUK BUKU RAPOR DAN CENTANG TARGET
   const daftarSiswaUnikMap = new Map();
   semuaAnggota.forEach(a => daftarSiswaUnikMap.set(a.email, { email: a.email, nama: a.nama }));
   setoranKelasIni.forEach(s => daftarSiswaUnikMap.set(s.email, { email: s.email, nama: s.nama }));
@@ -110,6 +108,30 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      return { ...siswa, nilaiPerUjian, totalSkor };
   });
   rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
+
+  // 👈 FITUR TAMBAH SISWA MANUAL KE DATABASE
+  const tambahSiswaManual = async (e) => {
+     e.preventDefault();
+     const namaInput = e.target.namaSiswa.value.trim();
+     const emailInput = e.target.emailSiswa.value.trim().toLowerCase();
+     
+     if(!namaInput || !emailInput || !kelasAktif) return;
+
+     try {
+        await setDoc(doc(db, "anggota", `${kelasAktif}_${emailInput}`), {
+           kodeHalaqah: kelasAktif,
+           email: emailInput,
+           nama: namaInput,
+           waktuGabung: Date.now(),
+           ditambahkanManual: true
+        }, { merge: true });
+        
+        alert(`✅ Siswa atas nama ${namaInput} berhasil ditambahkan secara manual ke kelas ini!`);
+        e.target.reset();
+     } catch (err) {
+        alert("Gagal menambahkan siswa manual.");
+     }
+  };
 
   const blokirAkun = async (emailSiswa) => {
      if(window.confirm(`Yakin ingin memblokir permanen ${emailSiswa}?\nMurid ini tidak akan bisa masuk ke kelas Anda lagi.`)) {
@@ -156,8 +178,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         judul: ujian.judul || '', durasi: ujian.durasi || 60,
         waktuMulai: ujian.waktuMulai || '', waktuSelesai: ujian.waktuSelesai || '',
         tipeTarget: ujian.tipeTarget || 'semua', targetSiswa: ujian.targetSiswa || '',
-        kunciLayar: ujian.kunciLayar || false,
-        poinBenar: ujian.poinBenar || 10
+        kunciLayar: ujian.kunciLayar || false, poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
   };
@@ -323,6 +344,15 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      alert(`✅ Kode Kelas "${kode}" berhasil disalin! Silakan bagikan ke murid.`);
   };
 
+  // 👈 FITUR BARU: GENERATE TEXT UNDANGAN WA
+  const salinUndanganWA = (halaqah) => {
+     const urlAplikasi = window.location.origin;
+     const teksWA = `🎓 *UNDANGAN KELAS VIRTUAL* 🎓\n\nHalo! Anda diundang untuk bergabung ke kelas *${halaqah.nama}* di portal pembelajaran kita.\n\nLangkah-langkah bergabung:\n1️⃣ Buka tautan: ${urlAplikasi}\n2️⃣ Klik tombol "Portal Siswa"\n3️⃣ Login dengan akun Google Anda\n4️⃣ Isi Nama Lengkap\n5️⃣ Masukkan Kode Kelas: *${halaqah.kode}*\n\nSelamat belajar dan sampai jumpa di kelas! 🚀`;
+     
+     navigator.clipboard.writeText(teksWA);
+     alert(`✅ Teks undangan WhatsApp berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
+  };
+
   const bukaEvaluasi = (s) => { 
     const baseSkorAsli = s.nilaiSistemAsli !== undefined ? s.nilaiSistemAsli : s.nilaiSistem;
     setSetoranTerpilih({ ...s, nilaiSistemAsli: baseSkorAsli }); 
@@ -441,6 +471,18 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
       {tabAdmin === 'rapor' && halaqahMilikGuru.length > 0 && (
          <div className="space-y-6">
+            
+            {/* 👈 FORMULIR TAMBAH MURID MANUAL */}
+            <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-[2rem] border border-teal-200 dark:border-teal-800 transition-colors">
+               <h3 className="text-teal-700 dark:text-teal-400 font-black mb-3">➕ Tambah Siswa Manual</h3>
+               <p className="text-xs text-teal-600 dark:text-teal-500 mb-4">Gunakan fitur ini jika ada murid yang kesulitan mendaftar mandiri. Masukkan namanya agar langsung masuk ke Buku Rapor & Daftar Target Ujian.</p>
+               <form onSubmit={tambahSiswaManual} className="flex flex-col md:flex-row gap-3">
+                  <input name="namaSiswa" placeholder="Nama Lengkap Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 dark:border-teal-700 focus:ring-2 ring-teal-400" />
+                  <input name="emailSiswa" type="email" placeholder="Email Google Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 dark:border-teal-700 focus:ring-2 ring-teal-400" />
+                  <button type="submit" className="bg-teal-600 hover:bg-teal-500 text-white font-black px-6 py-3 rounded-xl transition-colors shadow-sm">Daftarkan</button>
+               </form>
+            </div>
+
             <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
                <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mb-6">📊 Buku Rapor & Daftar Siswa Aktif</h2>
                
@@ -461,7 +503,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <tbody>
                         {rekapRapor.length === 0 ? (
                            <tr>
-                              <td colSpan={5 + ujianKelasIni.length} className="p-8 text-center text-slate-400 italic">Belum ada murid yang bergabung atau mengerjakan ujian.</td>
+                              <td colSpan={5 + ujianKelasIni.length} className="p-8 text-center text-slate-400 italic">Belum ada murid yang bergabung di kelas ini.</td>
                            </tr>
                         ) : (
                            rekapRapor.map((siswa, idx) => (
@@ -619,6 +661,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                           </div>
                           <div className="flex items-center gap-2">
                              <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center">{h.kode}</div>
+                             
+                             {/* 👈 TOMBOL SHARE UNDANGAN */}
+                             <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Undangan</button>
+                             
                              <button onClick={() => salinKode(h.kode)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-400 transition-colors">📋 Salin</button>
                           </div>
                        </div>
@@ -655,7 +701,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <span className={`text-[10px] md:text-xs font-bold ${editUjianId ? 'text-yellow-100' : 'text-orange-200'}`}>Poin/Soal</span>
                   </div>
 
-                  {/* 👈 FITUR BARU: CENTANG TARGET MURID DENGAN CHECKBOX */}
                   <div className={`p-4 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
                      <label className={`text-[10px] font-bold uppercase mb-2 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Siapa yang boleh ikut?):</label>
                      <select value={formUjian.tipeTarget} onChange={e => setFormUjian({...formUjian, tipeTarget: e.target.value, targetSiswa: ''})} className={`w-full p-3 mb-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`}>
