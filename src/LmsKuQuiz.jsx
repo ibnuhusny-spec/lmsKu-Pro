@@ -270,7 +270,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      </div>
   );
 
-  // 👈 LOGIKA TAMPILAN SETELAH SELESAI UJIAN (SERTIFIKAT + HASIL KOREKSI)
   if (isSelesai) {
     const opsiTanggal = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     const tglSelesai = new Date().toLocaleDateString('id-ID', opsiTanggal);
@@ -279,7 +278,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       <div className="min-h-screen py-12 px-4 bg-slate-50 dark:bg-slate-900 font-sans">
         <div className="max-w-3xl mx-auto flex flex-col items-center">
           
-          {/* SERTIFIKAT */}
           <div className="w-full bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border-t-8 border-emerald-500 mb-8 transition-colors area-cetak">
             <div className="mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
                <span className="text-6xl mb-4 block">🎓</span>
@@ -311,7 +309,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
             </div>
           </div>
 
-          {/* 👈 LEMBAR KOREKSI OTOMATIS (TERMASUK DALAM CETAKAN) */}
           <div className="w-full space-y-6 text-left area-cetak">
             <div className="text-center mb-8 border-b border-slate-200 dark:border-slate-700 pb-6">
                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Lembar Koreksi Jawaban</h2>
@@ -364,7 +361,10 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                      <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
                        <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
                        {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                       
+                       {/* 👈 FITUR BARU: MEDIA TAMPIL DI LEMBAR KOREKSI MURID */}
                        {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
+                       {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-8 mt-2" />}
                      </div>
                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -427,7 +427,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              <div className="mb-6 space-y-3 border-2 border-dashed border-indigo-100 dark:border-indigo-800 p-4 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/20 transition-colors">
                 <p className="text-[10px] font-black text-indigo-400 dark:text-indigo-500 uppercase text-center tracking-widest">Lampiran Soal:</p>
                 {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="max-h-48 mx-auto rounded-lg shadow-sm border border-white dark:border-slate-700" />}
-                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="w-full h-10 shadow-sm rounded-full" />}
+                {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 shadow-sm rounded-full" />}
              </div>
           )}
 

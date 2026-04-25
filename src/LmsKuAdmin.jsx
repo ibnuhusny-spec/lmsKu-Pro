@@ -122,7 +122,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      } catch (err) { alert("Gagal."); }
   };
 
-  // 👈 FITUR KELUARKAN SISWA DARI KELAS TANPA DIBLOKIR
   const keluarkanSiswa = async (emailSiswa) => {
      if(window.confirm(`Keluarkan ${emailSiswa} dari kelas ini?\n\nSiswa tersebut masih bisa masuk kembali dengan mengetik Kode Kelas Anda.`)) {
         try {
@@ -272,7 +271,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     if (!ujianAktifAdmin) return alert('Buat & Pilih Jadwal Ujian terlebih dahulu!');
     if (!form.teksSoal && !form.mediaSoalGambar && !form.mediaSoalSuara) return alert('Soal kosong!');
     if (form.tipe === 'pilihan_ganda' && form.kunci.length !== 1) return alert('Pilih 1 kunci!');
-    // 👈 BATAS MINIMAL DIUBAH JADI < 2 (BOLEH 2, 3, 4, atau 5)
     if (form.tipe === 'pilihan_ganda_kompleks' && form.kunci.length < 2) return alert('Pilih minimal 2 kunci!');
     if (form.tipe === 'isian' && (!form.kunci || form.kunci.length === 0)) return alert('Kunci isian kosong!');
     
@@ -505,7 +503,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                  ))}
                                  <td className="p-4 font-black text-center text-emerald-500 text-lg border-l border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/10">{siswa.totalSkor}</td>
                                  <td className="p-4 text-center">
-                                    {/* 👈 TOMBOL KELUARKAN SISWA (TANPA BLOKIR) DITAMBAH DI SINI */}
                                     <div className="flex gap-2 justify-center">
                                        <button onClick={() => keluarkanSiswa(siswa.email)} className="bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Keluarkan</button>
                                        <button onClick={() => blokirAkun(siswa.email)} className="bg-red-100 text-red-600 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Blokir Permanen</button>
@@ -781,23 +778,22 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     <option value="id">🇮🇩 Latin</option><option value="ar">🇸🇦 Arab</option><option value="campuran">🔄 Campuran</option>
                   </select>
 
-                  {form.tipe === 'uraian' && (
-                     <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-3 transition-colors">
-                       <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal:</p>
-                       <div className="flex gap-2">
-                          <label className="flex-1 text-center bg-purple-500 text-white py-2 rounded-lg font-bold text-xs cursor-pointer hover:bg-purple-600 shadow-sm transition-colors">📸 Foto <input type="file" accept="image/*" className="hidden" onChange={handleUploadGambarAdmin}/></label>
-                          <button type="button" onClick={isRecordingAdmin ? stopRecordingAdmin : startRecordingAdmin} className={`flex-1 text-center py-2 rounded-lg font-bold text-xs transition-colors shadow-sm ${isRecordingAdmin ? 'bg-red-500 text-white animate-pulse' : 'bg-pink-500 text-white hover:bg-pink-600'}`}>
-                             {isRecordingAdmin ? '⏹ Stop' : '🎤 Suara'}
-                          </button>
-                       </div>
-                       {form.mediaSoalGambar && (
-                          <div className="relative mt-2"><button type="button" onClick={() => setForm({...form, mediaSoalGambar: null})} className="absolute top-0 right-0 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md">✕</button><img src={form.mediaSoalGambar} className="w-full max-h-32 object-contain rounded-lg border bg-white dark:border-slate-700" /></div>
-                       )}
-                       {form.mediaSoalSuara && (
-                          <div className="relative mt-2"><button type="button" onClick={() => setForm({...form, mediaSoalSuara: null})} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs z-10 shadow-md">✕</button><audio controls src={form.mediaSoalSuara} className="w-full h-10 rounded-full shadow-sm" /></div>
-                       )}
+                  {/* 👈 FITUR BARU: MEDIA SOAL UNTUK SEMUA JENIS SOAL */}
+                  <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-3 transition-colors">
+                     <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal (Opsional):</p>
+                     <div className="flex gap-2">
+                        <label className="flex-1 text-center bg-purple-500 text-white py-2 rounded-lg font-bold text-xs cursor-pointer hover:bg-purple-600 shadow-sm transition-colors">📸 Foto <input type="file" accept="image/*" className="hidden" onChange={handleUploadGambarAdmin}/></label>
+                        <button type="button" onClick={isRecordingAdmin ? stopRecordingAdmin : startRecordingAdmin} className={`flex-1 text-center py-2 rounded-lg font-bold text-xs transition-colors shadow-sm ${isRecordingAdmin ? 'bg-red-500 text-white animate-pulse' : 'bg-pink-500 text-white hover:bg-pink-600'}`}>
+                           {isRecordingAdmin ? '⏹ Stop' : '🎤 Suara'}
+                        </button>
                      </div>
-                  )}
+                     {form.mediaSoalGambar && (
+                        <div className="relative mt-2"><button type="button" onClick={() => setForm({...form, mediaSoalGambar: null})} className="absolute top-0 right-0 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs shadow-md">✕</button><img src={form.mediaSoalGambar} className="w-full max-h-32 object-contain rounded-lg border bg-white dark:border-slate-700" /></div>
+                     )}
+                     {form.mediaSoalSuara && (
+                        <div className="relative mt-2"><button type="button" onClick={() => setForm({...form, mediaSoalSuara: null})} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs z-10 shadow-md">✕</button><audio controls src={form.mediaSoalSuara} className="w-full h-10 rounded-full shadow-sm" /></div>
+                     )}
+                  </div>
 
                   <textarea name="teksSoal" value={form.teksSoal} onChange={handleChange} placeholder="Ketik Pertanyaan..." rows="3" dir={form.bahasa === 'ar' ? 'rtl' : 'ltr'} className="w-full p-4 bg-white dark:bg-slate-700 dark:text-white rounded-2xl outline-none text-sm font-semibold border border-slate-200 dark:border-slate-700 focus:border-indigo-400 transition-colors" />
                   {(form.tipe === 'uraian' || form.bahasa === 'campuran') && (
@@ -836,7 +832,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     </div>
                   )}
 
-                  {/* 👈 FITUR KUNCI GANDA ISIAN DENGAN KOMA */}
                   {form.tipe === 'isian' && (
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800 transition-colors">
                       <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-2 block">Kunci Jawaban Isian (Pisahkan dengan koma jika ada variasi jawaban)</label>
@@ -864,7 +859,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     </div>
                     <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.replace(/_/g, ' ')}</span>
                     
-                    {soal.tipe === 'uraian' && (
+                    {/* 👈 MENAMPILKAN MEDIA UNTUK SEMUA JENIS SOAL DI BANK SOAL */}
+                    {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
                        <div className="mt-4 flex gap-2">
                           {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-16 rounded border dark:border-slate-600" />}
                           {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 mt-2" />}
@@ -979,12 +975,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                    const jawabanMuridArray = Array.isArray(jawabanMurid) ? jawabanMurid : (jawabanMurid ? [jawabanMurid] : []);
                    let isBenar = false;
 
-                   // 👈 EVALUASI KOREKSI MANUAL ISIAN JUGA MENDUKUNG KOMA
                    if (soal.tipe === 'isian') {
                       const kunciArray = typeof soal.kunci === 'string' ? soal.kunci.split(',').map(k => k.trim().toLowerCase()) : [];
                       isBenar = typeof jawabanMurid === 'string' && kunciArray.includes(jawabanMurid.trim().toLowerCase());
                    } else {
-                      isBenar = (jawabanMuridArray.length === kunciAsli.length) && jawabanMuridArray.every(j => kunciAsli.includes(j)); 
+                      isBenar = (jawabanMuridArray.length > 0 && jawabanMuridArray.length === kunciAsli.length) && jawabanMuridArray.every(j => kunciAsli.includes(j)); 
                    }
 
                    return (
@@ -993,9 +988,15 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                          <span className="text-[10px] font-black bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded uppercase">Soal {index + 1}</span>
                          {isBenar ? <span className="text-xl">✅</span> : <span className="text-xl">❌</span>}
                        </div>
+                       
+                       {/* 👈 MENAMPILKAN MEDIA SAAT KOREKSI UNTUK SEMUA JENIS SOAL */}
                        <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
                          <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
+                         {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                         {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
+                         {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-8 mt-2" />}
                        </div>
+                       
                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
                            <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Jawaban Murid:</span>
