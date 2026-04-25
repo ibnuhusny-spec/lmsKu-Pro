@@ -41,6 +41,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [semuaAnggota, setSemuaAnggota] = useState([]); 
   const [editForumId, setEditForumId] = useState(null);
   const [teksEditForum, setTeksEditForum] = useState('');
+  
+  // 👈 STATE BARU UNTUK MODAL QR CODE GURU
+  const [qrHalaqah, setQrHalaqah] = useState(null);
+
   const scrollRef = useRef(null);
 
   const isSuperAdmin = emailAdmin === superAdmin;
@@ -332,11 +336,12 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   };
 
   const salinUndanganWA = (halaqah) => {
-     const urlAplikasi = window.location.origin;
-     const teksWA = `🎓 *UNDANGAN KELAS VIRTUAL* 🎓\n\nHalo! Anda diundang untuk bergabung ke kelas *${halaqah.nama}* di portal pembelajaran kita.\n\nLangkah-langkah bergabung:\n1️⃣ Buka tautan: ${urlAplikasi}\n2️⃣ Klik tombol "Portal Siswa"\n3️⃣ Login dengan akun Google Anda\n4️⃣ Isi Nama Lengkap\n5️⃣ Masukkan Kode Kelas: *${halaqah.kode}*\n\nSelamat belajar dan sampai jumpa di kelas! 🚀`;
+     const urlAplikasi = window.location.origin + window.location.pathname; 
+     const linkDirect = `${urlAplikasi}?kelas=${halaqah.kode}`;
+     const teksWA = `🎓 *UNDANGAN KELAS VIRTUAL* 🎓\n\nHalo! Anda diundang untuk bergabung ke kelas *${halaqah.nama}* di portal pembelajaran kita.\n\n✨ *CARA CEPAT BERGABUNG:*\nKlik tautan otomatis di bawah ini, login dengan akun Google Anda, dan klik tombol "Masuk Kelas":\n👉 ${linkDirect}\n\n*(Atau masukkan kode kelas manual: ${halaqah.kode})*\n\nSelamat belajar dan sampai jumpa di kelas! 🚀`;
      
      navigator.clipboard.writeText(teksWA);
-     alert(`✅ Teks undangan WhatsApp berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
+     alert(`✅ Teks undangan WhatsApp Pintar berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
   };
 
   const bukaEvaluasi = (s) => { 
@@ -410,6 +415,21 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   return (
     <div className="p-4 md:p-8 font-sans max-w-7xl mx-auto pb-32">
       
+      {/* 👈 POP-UP MODAL QR CODE UNTUK GURU */}
+      {qrHalaqah && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full border border-slate-200 dark:border-slate-700 relative animate-fade-in-up">
+               <button onClick={() => setQrHalaqah(null)} className="absolute top-4 right-4 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white w-8 h-8 rounded-full font-bold transition-colors">✕</button>
+               <h3 className="text-xl font-black text-slate-800 dark:text-white mb-1 text-center">QR Code Kelas</h3>
+               <p className="text-sm font-bold text-slate-500 mb-6 text-center">{qrHalaqah.nama} ({qrHalaqah.kode})</p>
+               <div className="bg-white p-4 rounded-2xl shadow-inner border-4 border-emerald-100 mb-6">
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + qrHalaqah.kode)}`} alt="QR Code Kelas" className="w-48 h-48 md:w-56 md:h-56" />
+               </div>
+               <p className="text-xs text-slate-400 text-center font-medium">Tampilkan ini di layar proyektor kelas atau bagikan gambarnya ke murid Anda.</p>
+            </div>
+         </div>
+      )}
+
       <div className={`p-4 rounded-3xl mb-6 shadow-md flex flex-wrap justify-between items-center transition-colors ${isSuperAdmin ? 'bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-900 dark:to-indigo-900' : 'bg-indigo-600 dark:bg-indigo-900'}`}>
          <div>
             <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{isSuperAdmin ? '👑 PANEL SUPER ADMIN' : 'Ruang Kerja Eksklusif Guru'}</p>
@@ -649,6 +669,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                           </div>
                           <div className="flex items-center gap-2">
                              <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center">{h.kode}</div>
+                             
+                             {/* 👈 TOMBOL QR KHUSUS ADMIN/GURU */}
+                             <button onClick={() => setQrHalaqah(h)} className="bg-white/10 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors" title="Tampilkan QR Code Kelas">📱 QR</button>
+                             
                              <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Undangan</button>
                              <button onClick={() => salinKode(h.kode)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-400 transition-colors">📋 Salin</button>
                           </div>
@@ -686,8 +710,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <span className={`text-[10px] md:text-xs font-bold ${editUjianId ? 'text-yellow-100' : 'text-orange-200'}`}>Poin/Soal</span>
                   </div>
 
-                  <div className={`p-4 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
-                     <label className={`text-[10px] font-bold uppercase mb-2 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Siapa yang boleh ikut?):</label>
+                  <div className={`p-3 rounded-xl border mt-2 ${editUjianId ? 'bg-yellow-950/50 border-yellow-600' : 'bg-orange-900/50 border-orange-700'}`}>
+                     <label className={`text-[10px] font-bold uppercase mb-2 block ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Target Murid (Kosongkan jika untuk semua):</label>
                      <select value={formUjian.tipeTarget} onChange={e => setFormUjian({...formUjian, tipeTarget: e.target.value, targetSiswa: ''})} className={`w-full p-3 mb-3 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-sm border ${editUjianId ? 'bg-yellow-50 border-yellow-400' : 'bg-orange-50 dark:bg-slate-700 border-orange-300 dark:border-slate-600'}`}>
                         <option value="semua">Semua Murid di Kelas Ini</option>
                         <option value="khusus">Hanya Murid Tertentu (Pilih di bawah)</option>
@@ -778,7 +802,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     <option value="id">🇮🇩 Latin</option><option value="ar">🇸🇦 Arab</option><option value="campuran">🔄 Campuran</option>
                   </select>
 
-                  {/* 👈 FITUR BARU: MEDIA SOAL UNTUK SEMUA JENIS SOAL */}
                   <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-3 transition-colors">
                      <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal (Opsional):</p>
                      <div className="flex gap-2">
@@ -859,7 +882,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                     </div>
                     <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.replace(/_/g, ' ')}</span>
                     
-                    {/* 👈 MENAMPILKAN MEDIA UNTUK SEMUA JENIS SOAL DI BANK SOAL */}
                     {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
                        <div className="mt-4 flex gap-2">
                           {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-16 rounded border dark:border-slate-600" />}
@@ -989,7 +1011,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                          {isBenar ? <span className="text-xl">✅</span> : <span className="text-xl">❌</span>}
                        </div>
                        
-                       {/* 👈 MENAMPILKAN MEDIA SAAT KOREKSI UNTUK SEMUA JENIS SOAL */}
                        <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
                          <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
                          {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}

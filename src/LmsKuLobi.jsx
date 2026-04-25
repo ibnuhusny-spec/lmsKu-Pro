@@ -21,6 +21,9 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
   const [editPesanId, setEditPesanId] = useState(null);
   const [teksEdit, setTeksEdit] = useState('');
   const [waktuSekarang, setWaktuSekarang] = useState(new Date());
+  
+  // 👈 STATE BARU UNTUK MODAL QR CODE MURID
+  const [tampilQR, setTampilQR] = useState(false);
 
   const scrollRef = useRef(null);
   const jadwalUjianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === user.kodeHalaqah);
@@ -91,6 +94,21 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4 md:p-8 transition-colors flex flex-col items-center">
       
+      {/* 👈 POP-UP MODAL QR CODE UNTUK MURID */}
+      {tampilQR && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full border border-slate-200 dark:border-slate-700 relative animate-fade-in-up">
+               <button onClick={() => setTampilQR(false)} className="absolute top-4 right-4 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white w-8 h-8 rounded-full font-bold transition-colors">✕</button>
+               <h3 className="text-xl font-black text-slate-800 dark:text-white mb-1 text-center">Scan untuk Gabung</h3>
+               <p className="text-sm font-bold text-slate-500 mb-6 text-center">Kelas: {user.halaqah}</p>
+               <div className="bg-white p-4 rounded-2xl shadow-inner border-4 border-indigo-100 mb-6">
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + user.kodeHalaqah)}`} alt="QR Code Kelas" className="w-48 h-48 md:w-56 md:h-56" />
+               </div>
+               <p className="text-xs text-slate-400 text-center font-medium">Arahkan kamera HP temanmu ke kode QR ini agar bisa langsung masuk kelas.</p>
+            </div>
+         </div>
+      )}
+
       <div className="w-full max-w-4xl bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 p-6">
          <h2 className="text-xl font-black text-slate-800 dark:text-white mb-4">📋 Daftar Tugas & Ujian Anda</h2>
          
@@ -155,9 +173,11 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin })
               <p className="text-xs font-bold text-indigo-200 mt-1">Siswa Aktif: {user.nama}</p>
            </div>
            
-           {/* 👈 DUA OPSI TOMBOL KELUAR UNTUK SISWA */}
-           <div className="relative z-10 flex gap-2 mt-4 md:mt-0">
-              <button onClick={() => keLogin(false)} className="bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition-all shadow-inner border border-white/20" title="Ganti Akun Tanpa Meninggalkan Kelas">🔒 Ganti Sesi</button>
+           <div className="relative z-10 flex gap-2 mt-4 md:mt-0 flex-wrap justify-end">
+              {/* 👈 TOMBOL TAMPIL QR CODE UNTUK MURID */}
+              <button onClick={() => setTampilQR(true)} className="bg-white/10 hover:bg-white/30 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition-all shadow-inner border border-white/20" title="Tampilkan QR Code Kelas">📱 QR Kelas</button>
+              
+              <button onClick={() => keLogin(false)} className="bg-indigo-900/50 hover:bg-indigo-900/80 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition-all shadow-inner border border-indigo-400/50" title="Ganti Akun Tanpa Meninggalkan Kelas">🔒 Ganti Sesi</button>
               <button onClick={() => keLogin(true)} className="bg-red-500/80 hover:bg-red-500 text-white font-bold text-[10px] px-3 py-2 rounded-xl transition-all shadow-inner border border-red-400/50" title="Hapus Diri Saya Dari Kelas Ini">🚪 Keluar Kelas</button>
            </div>
         </div>
