@@ -156,6 +156,106 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     document.body.removeChild(link);
   };
 
+  // 👈 FITUR BARU: TEMPLATE IMPORT SOAL CSV
+  const unduhTemplateCSV = () => {
+    const csv = "TipeSoal(1=PG; 2=Kompleks; 3=Isian; 4=Uraian);Pertanyaan;OpsiA;OpsiB;OpsiC;OpsiD;OpsiE;KunciJawaban(Gunakan pemisah | untuk Ganda Kompleks)\n1;Siapa penemu lampu pijar?;Thomas Edison;Nikola Tesla;Albert Einstein;Isaac Newton;;Thomas Edison\n2;Manakah yang termasuk benda padat?;Batu;Air;Kayu;Asap;;Batu | Kayu\n3;Apa nama ibukota negara Indonesia?;;;;;;Jakarta, DKI Jakarta, Kota Jakarta\n4;Jelaskan proses terjadinya hujan!;;;;;;";
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Template_Import_Soal.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 👈 FITUR BARU: PROSES BACA FILE IMPORT SOAL
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!kelasAktif || !ujianAktifAdmin) {
+       alert("Pilih Kelas & Jadwal Ujian terlebih dahulu di panel sebelah kiri!");
+       e.target.value = null;
+       return;
+    }
+
+    setIsSaving(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+       try {
+          const text = event.target.result;
+          const lines = text.split(/\r?\n/);
+          
+          // Deteksi pemisah otomatis (Koma, Titik Koma, atau Tab)
+          const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
+          let successCount = 0;
+
+          for (let i = 1; i < lines.length; i++) {
+             const line = lines[i].trim();
+             if (!line) continue;
+             
+             // Pemisahan kolom sederhana
+             const cols = line.split(delimiter);
+             if (cols.length < 8) continue;
+             
+             const tipeCode = cols[0].trim();
+             const teksSoal = cols[1].replace(/^"|"$/g, '').trim();
+             const opsiA = cols[2].replace(/^"|"$/g, '').trim();
+             const opsiB = cols[3].replace(/^"|"$/g, '').trim();
+             const opsiC = cols[4].replace(/^"|"$/g, '').trim();
+             const opsiD = cols[5].replace(/^"|"$/g, '').trim();
+             const opsiE = cols[6].replace(/^"|"$/g, '').trim();
+             const kunciRaw = cols[7].replace(/^"|"$/g, '').trim();
+
+             let tipe = 'pilihan_ganda';
+             let kunci = kunciRaw;
+             
+             const optionsArr = [opsiA, opsiB, opsiC, opsiD, opsiE].filter(Boolean);
+             let jumlahOpsi = optionsArr.length > 0 ? optionsArr.length : 4;
+
+             if (tipeCode === '1') { 
+                tipe = 'pilihan_ganda'; 
+                kunci = [kunciRaw]; 
+             } else if (tipeCode === '2') { 
+                tipe = 'pilihan_ganda_kompleks'; 
+                kunci = kunciRaw.split('|').map(k => k.trim()); 
+             } else if (tipeCode === '3') { 
+                tipe = 'isian'; 
+                kunci = kunciRaw; 
+             } else if (tipeCode === '4') { 
+                tipe = 'uraian'; 
+                kunci = ''; 
+             }
+
+             const finalData = {
+                kodeHalaqah: kelasAktif,
+                idUjian: ujianAktifAdmin,
+                tipe: tipe,
+                bahasa: 'id', 
+                jumlahOpsi: jumlahOpsi,
+                teksSoal: teksSoal,
+                teksTambahanArab: '',
+                opsiA: opsiA, opsiB: opsiB, opsiC: opsiC, opsiD: opsiD, opsiE: opsiE,
+                kunci: kunci,
+                mediaSoalGambar: null, mediaSoalSuara: null,
+                izinUraian: { teks: true, gambar: true, suara: true },
+                id: Date.now() + i
+             };
+
+             await addDoc(collection(db, "soal"), finalData);
+             successCount++;
+          }
+          alert(`✅ Import Berhasil! ${successCount} Soal telah ditambahkan ke ujian ini.`);
+       } catch (error) {
+          alert("❌ Terjadi kesalahan saat membaca file CSV.");
+       } finally {
+          setIsSaving(false);
+          e.target.value = null; // Reset input file
+       }
+    };
+    reader.readAsText(file);
+  };
+
   const tambahSiswaManual = async (e) => {
      e.preventDefault();
      const namaInput = e.target.namaSiswa.value.trim();
@@ -581,8 +681,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
           .no-print { display: none !important; }
           body { background: white !important; color: black !important; }
           .teks-arab-besar { font-size: 18pt !important; line-height: 2 !important; }
-          .naskah-word { font-family: "Times New Roman", Times, serif !important; font-size: 12pt !important; }
-          .naskah-word img { max-height: 250px !important; }
         }
       `}</style>
 
@@ -623,6 +721,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       </div>
 
       <div className="no-print">
+         {/* PILIHAN KELAS UMUM */}
          {halaqahMilikGuru.length > 0 && tabAdmin !== 'guru' && (
             <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800 mb-6 flex flex-wrap gap-4 transition-colors">
                <div className="flex-1 min-w-[200px]">
@@ -1128,10 +1227,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <div className={`bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border-2 h-fit transition-colors ${editId ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/10' : 'border-slate-100 dark:border-slate-700'}`}>
                  <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-black text-slate-800 dark:text-white tracking-tight">{editId ? '✏️ Mode Edit' : '3. ➕ Masukkan Soal ke Ujian Aktif'}</h2>
-                    {editId ? (
+                    {editId && (
                        <button onClick={() => {setEditId(null); setForm({...form, tipe: 'pilihan_ganda', teksSoal: ''})}} className="text-xs font-bold text-red-500 dark:text-red-400 underline">Batal Edit</button>
-                    ) : (
-                       <button onClick={() => window.print()} className="bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-sm border dark:border-slate-600">📄 Cetak Soal (Word)</button>
                     )}
                  </div>
 
@@ -1152,6 +1249,22 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <select name="bahasa" value={form.bahasa} onChange={handleChange} className="w-full p-3 bg-white dark:bg-slate-700 dark:text-white rounded-xl font-bold text-xs outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-400 transition-colors">
                        <option value="id">🇮🇩 Latin</option><option value="ar">🇸🇦 Arab</option><option value="campuran">🔄 Campuran</option>
                      </select>
+
+                     {/* 👈 FITUR IMPORT CSV DITAMBAHKAN DI SINI */}
+                     {!editId && (
+                        <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl transition-colors flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
+                           <div>
+                              <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">⚡ Import Soal Massal (Banyak Soal Sekaligus)</p>
+                              <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1 font-medium">Download template, isi di Excel, lalu upload ke sini.</p>
+                           </div>
+                           <div className="flex gap-2 w-full sm:w-auto">
+                              <button type="button" onClick={unduhTemplateCSV} className="flex-1 sm:flex-none text-[10px] bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-3 py-2 rounded-lg font-bold hover:bg-emerald-300 dark:hover:bg-emerald-700 transition-colors">📥 Download Template</button>
+                              <label className="flex-1 sm:flex-none text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold cursor-pointer text-center shadow-md transition-colors">
+                                 📤 Upload CSV <input type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
+                              </label>
+                           </div>
+                        </div>
+                     )}
 
                      <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-3 transition-colors">
                         <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase">Lampirkan Media Soal (Opsional):</p>
@@ -1250,36 +1363,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
              </div>
            </div>
          )}
-      </div>
-
-      {/* -------------------- AREA CETAK WORD (PRINT ONLY) -------------------- */}
-      <div className="hidden print:block font-serif text-black w-full bg-white min-h-screen naskah-word">
-         <h1 className="text-center font-bold uppercase mb-8 border-b-2 border-black pb-4 text-2xl">
-            NASKAH UJIAN: {ujianKelasIni.find(u => u.docId === ujianAktifAdmin)?.judul || 'SOAL'}
-         </h1>
-         {soalTampil.map((soal, idx) => (
-            <div key={idx} className="mb-6 break-inside-avoid w-full" style={{ display: 'flex', gap: '8px' }}>
-               <p className="font-bold text-base">{idx + 1}.</p>
-               <div className="w-full">
-                  <p className="font-bold text-base leading-snug">{renderTeks(soal.teksSoal)}</p>
-                  {soal.teksTambahanArab && <p className="teks-arab-besar mt-2" dir="rtl" style={{ textAlign: 'right' }}>{soal.teksTambahanArab}</p>}
-                  {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} style={{ maxHeight: '200px', marginTop: '10px', display: 'block' }} alt="Media" />}
-                  {soal.tipe.startsWith('pilihan_ganda') && (
-                     <div className="mt-3 space-y-2 pl-2">
-                        {['A', 'B', 'C', 'D', 'E'].slice(0, soal.jumlahOpsi).map(lbl => (
-                           soal[`opsi${lbl}`] ? <p key={lbl} className="text-sm">{lbl}. {renderTeks(soal[`opsi${lbl}`])}</p> : null
-                        ))}
-                     </div>
-                  )}
-                  {soal.tipe === 'isian' && (
-                     <div className="mt-6 mb-2 border-b border-black w-1/2 h-4"></div>
-                  )}
-                  {soal.tipe === 'uraian' && (
-                     <div className="mt-8 mb-4 border-b border-black w-full h-8"></div>
-                  )}
-               </div>
-            </div>
-         ))}
       </div>
 
     </div>
