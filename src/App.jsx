@@ -162,7 +162,7 @@ function App() {
   };
 
   return (
-    <div className={`${isDarkMode ? 'dark' : ''} transition-colors duration-500`}>
+    <div translate="no" className={`notranslate ${isDarkMode ? 'dark' : ''} transition-colors duration-500`}>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-500 relative">
         <button onClick={toggleTheme} className="absolute top-4 right-4 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur p-3 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 hover:scale-110 transition-transform">
            {isDarkMode ? '☀️' : '🌙'}
