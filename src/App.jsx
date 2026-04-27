@@ -21,7 +21,6 @@ function App() {
   const SUPER_ADMIN = 'ibnuhusny@gmail.com';
 
   useEffect(() => {
-    // 👈 LOGIKA BACA URL & SIMPAN DI SESSION (Agar tidak hilang saat login Google)
     const params = new URLSearchParams(window.location.search);
     const kelasDariLink = params.get('kelas');
     if (kelasDariLink) {
@@ -108,15 +107,18 @@ function App() {
      } catch (error) { alert("Gagal Admin: " + error.message); }
   };
 
+  // INI ADALAH KUNCI UTAMA LOGOUT GOOGLE
   const handleLogoutGmail = () => { 
      localStorage.removeItem('lmsku_sesi_siswa'); 
      sessionStorage.removeItem('temp_kelas');
-     signOut(auth); setGoogleUser(null); setHalaman('splash'); 
+     signOut(auth); 
+     setGoogleUser(null); 
+     setHalaman('splash'); 
   };
 
   const handleKeluarKelas = async (isPermanen = false) => {
      if (isPermanen && user) {
-        if(window.confirm("Keluar dari kelas permanen?")) {
+        if(window.confirm("Yakin ingin keluar dari kelas ini secara permanen?\nData absen Anda di kelas ini akan terhapus.")) {
            try { await deleteDoc(doc(db, "anggota", `${user.kodeHalaqah}_${user.email}`)); } catch(e) {}
         } else { return; }
      }
@@ -184,10 +186,16 @@ function App() {
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl w-full max-w-sm border-t-8 border-indigo-500 transition-colors">
               <button onClick={() => setHalaman('splash')} className="text-slate-400 font-bold text-xs mb-6 block">← Kembali</button>
               <form onSubmit={handleMasukRuangan} className="space-y-4">
-                 <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                    <p className="text-[10px] font-black text-indigo-400 uppercase">Akun Google:</p>
-                    <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300 truncate">{googleUser?.email}</p>
+                 
+                 {/* PERBAIKAN 1: KOTAK EMAIL MURID DENGAN TOMBOL GANTI AKUN */}
+                 <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800 flex justify-between items-center gap-2">
+                    <div className="overflow-hidden">
+                       <p className="text-[10px] font-black text-indigo-400 uppercase">Akun Google:</p>
+                       <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300 truncate">{googleUser?.email}</p>
+                    </div>
+                    <button type="button" onClick={handleLogoutGmail} className="shrink-0 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-2 rounded-lg hover:bg-red-200 transition-colors">Ganti</button>
                  </div>
+
                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Nama Lengkap</label>
                  <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold border border-transparent" />
                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
@@ -200,8 +208,13 @@ function App() {
           </div>
         )}
 
-        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={() => setHalaman('splash')} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
+        {/* PERBAIKAN 2: MENGUBAH PROP KELOGIN ADMIN AGAR BENAR-BENAR LOGOUT GOOGLE */}
+        {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={handleLogoutGmail} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
+        
+        {/* LOBI MURID */}
         {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} />}
+        
+        {/* UJIAN MURID */}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
       </div>
     </div>
