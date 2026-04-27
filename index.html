@@ -5,7 +5,37 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>lmsku-pro</title>
-  </head>
+
+    <style>
+      /* Mencegah murid memblok/menyorot teks (Anti Copy) */
+      body {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+    </style>
+    <script>
+      // 1. Mematikan fitur Klik Kanan
+      document.addEventListener('contextmenu', event => event.preventDefault());
+
+      // 2. Mematikan Tombol Shortcut Curang (F12, Ctrl+C, Ctrl+U, Ctrl+Shift+I)
+      document.addEventListener('keydown', (e) => {
+        if (
+          e.key === 'F12' || 
+          (e.ctrlKey && e.shiftKey && e.key === 'I') || 
+          (e.ctrlKey && e.key === 'u') || 
+          (e.ctrlKey && e.key === 'U') || 
+          (e.ctrlKey && e.key === 'c') || 
+          (e.ctrlKey && e.key === 'C') ||
+          (e.ctrlKey && e.key === 'v') ||
+          (e.ctrlKey && e.key === 'V')
+        ) {
+          e.preventDefault();
+        }
+      });
+    </script>
+    </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
