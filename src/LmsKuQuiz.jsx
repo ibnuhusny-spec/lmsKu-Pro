@@ -31,7 +31,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // 👈 STATE BARU UNTUK MENYIMPAN OPSI JAWABAN YANG SUDAH DIACAK
   const [shuffledOptionsMap, setShuffledOptionsMap] = useState({});
 
   const soalUjianIni = bankSoal.filter(s => s.idUjian === ujianAktif.docId);
@@ -46,14 +45,12 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
   const poinSet = Number(ujianAktif.poinBenar) || 10;
 
-  // 👈 LOGIKA ACAK JAWABAN (Dijalankan sekali saja saat ujian dimuat)
   useEffect(() => {
      if (soalUjianIni.length > 0 && Object.keys(shuffledOptionsMap).length === 0) {
         const mapAcak = {};
         soalUjianIni.forEach((s, idx) => {
            if (s.tipe && s.tipe.startsWith('pilihan')) {
               const arr = [s.opsiA, s.opsiB, s.opsiC, s.opsiD, s.opsiE].filter(Boolean);
-              // Rumus Acak Fisher-Yates (Sangat Presisi)
               for (let i = arr.length - 1; i > 0; i--) {
                  const j = Math.floor(Math.random() * (i + 1));
                  [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -153,6 +150,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      setJawabanPeserta({ ...jawabanPeserta, [currentQuestionIndex]: { ...jawabanSekarang, [jenis]: nilai } });
   };
 
+  // 📸 MESIN KOMPRESI GAMBAR OTOMATIS
   const handleUploadGambarUraian = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -161,23 +159,39 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; 
+        const MAX_WIDTH = 800; // Lebar dioptimalkan agar tulisan buku tetap terbaca
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH; 
         canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        handleUraianUpdate('gambar', canvas.toDataURL('image/jpeg', 0.4)); 
+        
+        // Output kualitas 50% format JPEG (Sangat menghemat size hingga ±100KB)
+        handleUraianUpdate('gambar', canvas.toDataURL('image/jpeg', 0.5)); 
       }
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };
 
+  // 🎤 MESIN KOMPRESI SUARA OTOMATIS
   const startRecordingUraian = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      
+      // Setting Bitrate Rendah Setara WhatsApp Voice Note (16 kbps)
+      const options = {
+         mimeType: 'audio/webm;codecs=opus',
+         audioBitsPerSecond: 16000 
+      };
+
+      // Pengecekan kompabilitas browser terhadap opsi kompresi
+      if (MediaRecorder.isTypeSupported(options.mimeType)) {
+         mediaRecorderRef.current = new MediaRecorder(stream, options);
+      } else {
+         mediaRecorderRef.current = new MediaRecorder(stream); // Fallback browser lawas
+      }
+
       mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
@@ -190,6 +204,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       setIsRecording(true);
     } catch (err) { alert("Akses Mikrofon ditolak komputer/HP Anda."); }
   };
+
   const stopRecordingUraian = () => { if (mediaRecorderRef.current) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
 
   const submitTugas = async (isAutoSubmit = false) => {
@@ -249,7 +264,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       localStorage.removeItem(keyPelanggaran);
       setIsSelesai(true);
     } catch (e) { 
-      alert("❌ GAGAL MENGIRIM JAWABAN KE SERVER!"); 
+      alert("❌ GAGAL MENGIRIM JAWABAN KE SERVER! Pastikan Koneksi Internet Stabil."); 
       hasSubmitted.current = false;
     }
     setIsSubmitting(false);
@@ -490,7 +505,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const soal = soalUjianIni[currentQuestionIndex];
   const isArab = soal.bahasa === 'ar';
   
-  // 👈 PEMBACA ARRAY ACAK UNTUK TAMPILAN MURID
   const arrayPilihan = shuffledOptionsMap[currentQuestionIndex] || [soal?.opsiA, soal?.opsiB, soal?.opsiC, soal?.opsiD, soal?.opsiE].filter(Boolean);
   
   const izin = soal?.izinUraian || { teks: true, gambar: true, suara: true };
@@ -545,7 +559,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                   <button key={index} onClick={() => soal.tipe === 'pilihan_ganda_kompleks' ? handlePilihMulti(opsi) : setJawabanPeserta({...jawabanPeserta, [currentQuestionIndex]: opsi})}
                     className={`w-full flex items-center p-3 md:p-4 rounded-2xl transition-all text-left border-2 ${isArab ? 'flex-row-reverse text-right' : ''} ${isSelected ? 'bg-indigo-500 text-white border-indigo-700 shadow-md' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-slate-100 dark:border-slate-600 hover:border-indigo-200 dark:hover:border-indigo-500'}`}
                   >
-                    {/* 👈 HURUF A, B, C TETAP URUT, TAPI TEKSNYA ACAK */}
                     <span className={`font-black ${isSelected ? 'text-indigo-200' : 'text-slate-300 dark:text-slate-400'} ${isArab ? 'ml-3' : 'mr-3'}`}>{isArab ? abjadArab[index] : abjadId[index]}.</span>
                     <span className={`flex-grow font-semibold ${isArab ? 'teks-arab-besar leading-none' : 'text-sm md:text-base'}`} dir={isArab ? 'rtl' : 'ltr'}>{renderTeks(opsi)}</span>
                   </button>

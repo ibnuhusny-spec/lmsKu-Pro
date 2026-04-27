@@ -4,9 +4,13 @@ import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc, onSnapshot } fro
 
 const renderTeks = (text) => {
   if (!text) return null;
-  const parts = text.split(/([\u0600-\u06FF\u064B-\u065F\u0670\s]+)/g);
+  // MENGGUNAKAN NEW REGEXP AGAR VITE TIDAK ERROR PARSING
+  const regexArab = new RegExp('([\\u0600-\\u06FF\\u064B-\\u065F\\u0670\\s]+)', 'g');
+  const checkArab = new RegExp('[\\u0600-\\u06FF]');
+  
+  const parts = text.split(regexArab);
   return parts.map((part, index) => (
-    /[\u0600-\u06FF]/.test(part) ? (
+    checkArab.test(part) ? (
       <span key={index} className="teks-arab-besar inline-block px-1 align-middle text-indigo-900 dark:text-indigo-300" dir="rtl">
         {part}
       </span>
@@ -25,7 +29,7 @@ const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUppe
 
 const formatTeksDenganLink = (teks) => {
   if (!teks) return null;
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urlRegex = new RegExp('(https?:\\/\\/[^\\s]+)', 'g');
   return teks.split(urlRegex).map((part, i) => {
     if (part.match(urlRegex)) {
        return (
@@ -131,10 +135,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   });
   rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
 
-  // MENGGUNAKAN CSV STANDAR AGAR AMAN DI HP
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    
     let header = ["No", "Nama Siswa", "Email"];
     ujianKelasIni.forEach(u => header.push(u.judul));
     header.push("Total Skor");
@@ -156,7 +158,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     document.body.removeChild(link);
   };
 
-  // FITUR BARU: TEMPLATE IMPORT SOAL CSV
   const unduhTemplateCSV = () => {
     const csv = "TipeSoal(1=PG; 2=Kompleks; 3=Isian; 4=Uraian);Pertanyaan;OpsiA;OpsiB;OpsiC;OpsiD;OpsiE;KunciJawaban(Gunakan pemisah | untuk Ganda Kompleks)\n1;Siapa penemu lampu pijar?;Thomas Edison;Nikola Tesla;Albert Einstein;Isaac Newton;;Thomas Edison\n2;Manakah yang termasuk benda padat?;Batu;Air;Kayu;Asap;;Batu | Kayu\n3;Apa nama ibukota negara Indonesia?;;;;;;Jakarta, DKI Jakarta, Kota Jakarta\n4;Jelaskan proses terjadinya hujan!;;;;;;";
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -169,7 +170,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     document.body.removeChild(link);
   };
 
-  // FITUR BARU: PROSES BACA FILE IMPORT SOAL
   const handleImportCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -186,7 +186,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
           const text = event.target.result;
           const lines = text.split(/\r?\n/);
           
-          // Deteksi pemisah otomatis (Koma, Titik Koma, atau Tab)
           const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
           let successCount = 0;
 
@@ -194,7 +193,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
              const line = lines[i].trim();
              if (!line) continue;
              
-             // Pemisahan kolom sederhana
              const cols = line.split(delimiter);
              if (cols.length < 8) continue;
              
@@ -250,7 +248,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
           alert("❌ Terjadi kesalahan saat membaca file CSV.");
        } finally {
           setIsSaving(false);
-          e.target.value = null; // Reset input file
+          e.target.value = null;
        }
     };
     reader.readAsText(file);
@@ -1250,7 +1248,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                        <option value="id">🇮🇩 Latin</option><option value="ar">🇸🇦 Arab</option><option value="campuran">🔄 Campuran</option>
                      </select>
 
-                     {/* 👈 FITUR IMPORT CSV DITAMBAHKAN DI SINI */}
                      {!editId && (
                         <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl transition-colors flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
                            <div>
