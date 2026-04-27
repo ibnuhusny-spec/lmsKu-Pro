@@ -156,7 +156,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     document.body.removeChild(link);
   };
 
-  // 👈 FITUR BARU: TEMPLATE IMPORT SOAL CSV
+  // FITUR BARU: TEMPLATE IMPORT SOAL CSV
   const unduhTemplateCSV = () => {
     const csv = "TipeSoal(1=PG; 2=Kompleks; 3=Isian; 4=Uraian);Pertanyaan;OpsiA;OpsiB;OpsiC;OpsiD;OpsiE;KunciJawaban(Gunakan pemisah | untuk Ganda Kompleks)\n1;Siapa penemu lampu pijar?;Thomas Edison;Nikola Tesla;Albert Einstein;Isaac Newton;;Thomas Edison\n2;Manakah yang termasuk benda padat?;Batu;Air;Kayu;Asap;;Batu | Kayu\n3;Apa nama ibukota negara Indonesia?;;;;;;Jakarta, DKI Jakarta, Kota Jakarta\n4;Jelaskan proses terjadinya hujan!;;;;;;";
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -169,7 +169,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     document.body.removeChild(link);
   };
 
-  // 👈 FITUR BARU: PROSES BACA FILE IMPORT SOAL
+  // FITUR BARU: PROSES BACA FILE IMPORT SOAL
   const handleImportCSV = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1342,7 +1342,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                           <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
                           <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-50 hover:text-white transition-colors">🗑️</button>
                        </div>
-                       <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.replace(/_/g, ' ')}</span>
+                       <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.split('_').join(' ')}</span>
                        
                        {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
                           <div className="mt-4 flex gap-2">
