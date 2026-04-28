@@ -690,7 +690,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <h3 className="text-xl font-black mb-1 text-slate-800 dark:text-white">QR Code Kelas</h3>
                <p className="text-sm font-bold text-slate-500 mb-6 text-center">{qrHalaqah.nama} ({qrHalaqah.kode})</p>
                <div className="bg-white p-4 rounded-2xl shadow-inner border-4 border-indigo-100 mb-6">
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + qrHalaqah.kode)}`} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56" />
+                  <img src={`https://quickchart.io/qr?size=250&text=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + qrHalaqah.kode)}`} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56" />
                </div>
                <p className="text-xs text-slate-400 text-center font-medium">Tampilkan ini di layar proyektor kelas atau bagikan gambarnya ke murid Anda.</p>
             </div>
