@@ -13,11 +13,6 @@ const renderTeks = (text) => {
   ));
 };
 
-const formatWaktuTampil = (detik) => {
-  if (detik == null) return '-';
-  return `${Math.floor(detik / 60)}m ${detik % 60}s`;
-};
-
 const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const [isMulai, setIsMulai] = useState(false);
   const [waktuMulai, setWaktuMulai] = useState(null);
@@ -31,7 +26,9 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
+  // 👈 STATE BARU UNTUK PENGACAK GANDA (OPSI & NOMOR SOAL)
   const [shuffledOptionsMap, setShuffledOptionsMap] = useState({});
+  const [shuffledIndices, setShuffledIndices] = useState([]);
 
   const soalUjianIni = bankSoal.filter(s => s.idUjian === ujianAktif.docId);
   const durasiMaksimal = ujianAktif.durasi * 60;
@@ -45,9 +42,19 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
   const poinSet = Number(ujianAktif.poinBenar) || 10;
 
+  // 👈 MESIN PENGACAK GANDA FISHER-YATES (Dijalankan 1x saat ujian dimuat)
   useEffect(() => {
      if (soalUjianIni.length > 0 && Object.keys(shuffledOptionsMap).length === 0) {
         const mapAcak = {};
+        
+        // 1. Mengacak Urutan Nomor Soal
+        const indices = soalUjianIni.map((_, idx) => idx);
+        for (let i = indices.length - 1; i > 0; i--) {
+           const j = Math.floor(Math.random() * (i + 1));
+           [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+
+        // 2. Mengacak Opsi Jawaban Pilihan Ganda
         soalUjianIni.forEach((s, idx) => {
            if (s.tipe && s.tipe.startsWith('pilihan')) {
               const arr = [s.opsiA, s.opsiB, s.opsiC, s.opsiD, s.opsiE].filter(Boolean);
@@ -58,6 +65,8 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
               mapAcak[idx] = arr;
            }
         });
+        
+        setShuffledIndices(indices);
         setShuffledOptionsMap(mapAcak);
      }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,18 +148,22 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      }
   };
 
+  // 👈 RUMUS ILUSI VISUAL: Menerjemahkan soal yang tampil ke index asli database
+  const getActualIndex = () => shuffledIndices.length > 0 ? shuffledIndices[currentQuestionIndex] : currentQuestionIndex;
+
   const handlePilihMulti = (opsi) => {
-    let jwb = [...(jawabanPeserta[currentQuestionIndex] || [])];
+    const aIdx = getActualIndex();
+    let jwb = [...(jawabanPeserta[aIdx] || [])];
     jwb.includes(opsi) ? jwb = jwb.filter(i => i !== opsi) : jwb.push(opsi);
-    setJawabanPeserta({ ...jawabanPeserta, [currentQuestionIndex]: jwb });
+    setJawabanPeserta({ ...jawabanPeserta, [aIdx]: jwb });
   };
 
   const handleUraianUpdate = (jenis, nilai) => {
-     const jawabanSekarang = jawabanPeserta[currentQuestionIndex] || { teks: '', gambar: null, suara: null };
-     setJawabanPeserta({ ...jawabanPeserta, [currentQuestionIndex]: { ...jawabanSekarang, [jenis]: nilai } });
+     const aIdx = getActualIndex();
+     const jawabanSekarang = jawabanPeserta[aIdx] || { teks: '', gambar: null, suara: null };
+     setJawabanPeserta({ ...jawabanPeserta, [aIdx]: { ...jawabanSekarang, [jenis]: nilai } });
   };
 
-  // 📸 MESIN KOMPRESI GAMBAR OTOMATIS
   const handleUploadGambarUraian = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -159,14 +172,12 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; // Lebar dioptimalkan agar tulisan buku tetap terbaca
+        const MAX_WIDTH = 800; 
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = MAX_WIDTH; 
         canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Output kualitas 50% format JPEG (Sangat menghemat size hingga ±100KB)
         handleUraianUpdate('gambar', canvas.toDataURL('image/jpeg', 0.5)); 
       }
       img.src = event.target.result;
@@ -174,22 +185,15 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
     reader.readAsDataURL(file);
   };
 
-  // 🎤 MESIN KOMPRESI SUARA OTOMATIS
   const startRecordingUraian = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 16000 };
       
-      // Setting Bitrate Rendah Setara WhatsApp Voice Note (16 kbps)
-      const options = {
-         mimeType: 'audio/webm;codecs=opus',
-         audioBitsPerSecond: 16000 
-      };
-
-      // Pengecekan kompabilitas browser terhadap opsi kompresi
       if (MediaRecorder.isTypeSupported(options.mimeType)) {
          mediaRecorderRef.current = new MediaRecorder(stream, options);
       } else {
-         mediaRecorderRef.current = new MediaRecorder(stream); // Fallback browser lawas
+         mediaRecorderRef.current = new MediaRecorder(stream);
       }
 
       mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
@@ -207,6 +211,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
 
   const stopRecordingUraian = () => { if (mediaRecorderRef.current) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
 
+  // 👈 SAAT SUBMIT, KITA MENGHITUNG MENGGUNAKAN ARRAY ASLI AGAR KOREKSI GURU TIDAK ERROR
   const submitTugas = async (isAutoSubmit = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -314,8 +319,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
 
     return (
       <div className="min-h-screen py-12 px-4 bg-slate-50 dark:bg-slate-900 font-sans">
-        
-        {/* CSS MEDIA PRINT UNTUK 1-2 HALAMAN */}
         <style>{`
             @media print {
               @page { size: A4; margin: 1cm; }
@@ -331,7 +334,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
         `}</style>
 
         <div className="max-w-3xl mx-auto flex flex-col items-center">
-          
           <div className="w-full bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl text-center border-t-8 border-emerald-500 mb-8 transition-colors area-cetak sertifikat">
             <div className="mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
                <span className="text-6xl mb-4 block">🎓</span>
@@ -369,7 +371,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                <p className="text-xs font-bold text-slate-400 mt-1">Evaluasi mandiri hasil pekerjaan Anda</p>
             </div>
 
-            {/* TABEL KOREKSI KHUSUS MODE CETAK (PRINT ONLY) */}
             <div className="hidden print:block w-full">
               <h2 className="text-sm font-black uppercase mb-4 text-center">Rincian Jawaban</h2>
               <table className="tabel-koreksi">
@@ -418,7 +419,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
               </table>
             </div>
 
-            {/* KOTAK KOREKSI KHUSUS LAYAR HP/LAPTOP (TIDAK IKUT DICETAK) */}
             <div className="no-print">
                {soalUjianIni.map((soal, index) => {
                   const jawabanMurid = jawabanPeserta[index];
@@ -502,13 +502,16 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   }
 
   const formatWaktuHitungMundur = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
-  const soal = soalUjianIni[currentQuestionIndex];
-  const isArab = soal.bahasa === 'ar';
   
-  const arrayPilihan = shuffledOptionsMap[currentQuestionIndex] || [soal?.opsiA, soal?.opsiB, soal?.opsiC, soal?.opsiD, soal?.opsiE].filter(Boolean);
+  // 👈 PEMBACA SOAL BERDASARKAN ILUSI (ACAK)
+  const actualIndex = getActualIndex();
+  const soal = soalUjianIni[actualIndex];
+  const isArab = soal?.bahasa === 'ar';
+  
+  const arrayPilihan = shuffledOptionsMap[actualIndex] || [soal?.opsiA, soal?.opsiB, soal?.opsiC, soal?.opsiD, soal?.opsiE].filter(Boolean);
   
   const izin = soal?.izinUraian || { teks: true, gambar: true, suara: true };
-  const jwbUraian = (soal?.tipe === 'uraian' && jawabanPeserta[currentQuestionIndex]) ? jawabanPeserta[currentQuestionIndex] : { teks: '', gambar: null, suara: null };
+  const jwbUraian = (soal?.tipe === 'uraian' && jawabanPeserta[actualIndex]) ? jawabanPeserta[actualIndex] : { teks: '', gambar: null, suara: null };
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-8 font-sans">
@@ -524,11 +527,11 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
       <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 dark:border-slate-700 min-h-[50vh] flex flex-col transition-colors">
         <div className="flex justify-between mb-6 items-center">
            <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full uppercase border border-indigo-100 dark:border-indigo-700">Soal {currentQuestionIndex + 1} / {soalUjianIni.length}</span>
-           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700 px-2 py-1 rounded">{soal.tipe.replace(/_/g, ' ')}</span>
+           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700 px-2 py-1 rounded">{soal?.tipe.replace(/_/g, ' ')}</span>
         </div>
         
         <div className="flex-grow">
-          {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
+          {(soal?.mediaSoalGambar || soal?.mediaSoalSuara) && (
              <div className="mb-6 space-y-3 border-2 border-dashed border-indigo-100 dark:border-indigo-800 p-4 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/20 transition-colors">
                 <p className="text-[10px] font-black text-indigo-400 dark:text-indigo-500 uppercase text-center tracking-widest">Lampiran Soal:</p>
                 {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="max-h-48 mx-auto rounded-lg shadow-sm border border-white dark:border-slate-700" />}
@@ -537,11 +540,11 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
           )}
 
           <div className={`mb-6 ${isArab ? 'text-right' : 'text-left'}`} dir={isArab ? 'rtl' : 'ltr'}>
-            <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white leading-relaxed">{renderTeks(soal.teksSoal)}</p>
-            {soal.teksTambahanArab && <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-colors"><p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p></div>}
+            <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white leading-relaxed">{renderTeks(soal?.teksSoal)}</p>
+            {soal?.teksTambahanArab && <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-2xl transition-colors"><p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p></div>}
           </div>
 
-          {soal.tipe === 'pilihan_ganda_kompleks' && (
+          {soal?.tipe === 'pilihan_ganda_kompleks' && (
              <div className="mb-4 bg-sky-50 dark:bg-sky-900/30 p-3 rounded-xl border border-sky-100 dark:border-sky-800 flex items-center gap-3">
                 <span className="text-2xl">💡</span>
                 <div>
@@ -551,12 +554,12 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
              </div>
           )}
 
-          {soal.tipe.startsWith('pilihan_ganda') && (
+          {soal?.tipe.startsWith('pilihan_ganda') && (
             <div className="space-y-3">
               {arrayPilihan.map((opsi, index) => {
-                const isSelected = soal.tipe === 'pilihan_ganda_kompleks' ? (jawabanPeserta[currentQuestionIndex] || []).includes(opsi) : jawabanPeserta[currentQuestionIndex] === opsi;
+                const isSelected = soal.tipe === 'pilihan_ganda_kompleks' ? (jawabanPeserta[actualIndex] || []).includes(opsi) : jawabanPeserta[actualIndex] === opsi;
                 return (
-                  <button key={index} onClick={() => soal.tipe === 'pilihan_ganda_kompleks' ? handlePilihMulti(opsi) : setJawabanPeserta({...jawabanPeserta, [currentQuestionIndex]: opsi})}
+                  <button key={index} onClick={() => soal.tipe === 'pilihan_ganda_kompleks' ? handlePilihMulti(opsi) : setJawabanPeserta({...jawabanPeserta, [actualIndex]: opsi})}
                     className={`w-full flex items-center p-3 md:p-4 rounded-2xl transition-all text-left border-2 ${isArab ? 'flex-row-reverse text-right' : ''} ${isSelected ? 'bg-indigo-500 text-white border-indigo-700 shadow-md' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-slate-100 dark:border-slate-600 hover:border-indigo-200 dark:hover:border-indigo-500'}`}
                   >
                     <span className={`font-black ${isSelected ? 'text-indigo-200' : 'text-slate-300 dark:text-slate-400'} ${isArab ? 'ml-3' : 'mr-3'}`}>{isArab ? abjadArab[index] : abjadId[index]}.</span>
@@ -567,13 +570,13 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
             </div>
           )}
 
-          {soal.tipe === 'isian' && (
+          {soal?.tipe === 'isian' && (
             <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 shadow-inner transition-colors">
-               <textarea rows="2" dir={isArab ? 'rtl' : 'ltr'} placeholder={isArab ? 'اُكْتُبْ...' : 'Ketik jawaban Anda di sini...'} value={jawabanPeserta[currentQuestionIndex] || ''} onChange={(e) => setJawabanPeserta({...jawabanPeserta, [currentQuestionIndex]: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 outline-none font-bold text-emerald-800 dark:text-emerald-400 focus:ring-2 ring-emerald-200 dark:ring-emerald-700 transition-colors" />
+               <textarea rows="2" dir={isArab ? 'rtl' : 'ltr'} placeholder={isArab ? 'اُكْتُبْ...' : 'Ketik jawaban Anda di sini...'} value={jawabanPeserta[actualIndex] || ''} onChange={(e) => setJawabanPeserta({...jawabanPeserta, [actualIndex]: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-xl p-4 outline-none font-bold text-emerald-800 dark:text-emerald-400 focus:ring-2 ring-emerald-200 dark:ring-emerald-700 transition-colors" />
             </div>
           )}
 
-          {soal.tipe === 'uraian' && (
+          {soal?.tipe === 'uraian' && (
             <div className="space-y-4 border-t-2 border-dashed border-slate-200 dark:border-slate-700 pt-6 mt-4 transition-colors">
                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Formulir Jawaban Anda:</p>
                
