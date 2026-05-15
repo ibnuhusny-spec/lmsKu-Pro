@@ -118,35 +118,29 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     };
   }, [kelasAktif]);
 
+  // LOGIKA EXTRAKSI GURU KELAS INI
+  const halaqahAktifObj = daftarHalaqahAman.find(h => h.kode === kelasAktif);
+  const guruKelasIni = halaqahAktifObj && halaqahAktifObj.emailGuru 
+     ? halaqahAktifObj.emailGuru.split(',').map(e => e.trim()).filter(e => e) 
+     : [];
 
-  // LOGIKA KEBAL PELURU (BULLETPROOF) UNTUK REKAP RAPOR & NAMA
   const daftarSiswaUnikMap = new Map();
-  
   semuaAnggota.forEach(a => {
-     if (a.email) {
-        daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
-     }
+     if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
   });
-
   setoranKelasIni.forEach(s => {
      if (s.email) {
         const emailKey = s.email.toLowerCase().trim();
         const dataLama = daftarSiswaUnikMap.get(emailKey);
         if (!dataLama || (dataLama.nama.includes('@') && s.nama && !s.nama.includes('@'))) {
-           daftarSiswaUnikMap.set(emailKey, { 
-              email: s.email, 
-              nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) 
-           });
+           daftarSiswaUnikMap.set(emailKey, { email: s.email, nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) });
         }
      }
   });
-
   semuaPesan.filter(p => p.peran === 'siswa').forEach(p => {
      if (p.email) {
         const emailKey = p.email.toLowerCase().trim();
-        if (!daftarSiswaUnikMap.has(emailKey)) {
-           daftarSiswaUnikMap.set(emailKey, { email: p.email, nama: p.nama || 'Siswa' });
-        }
+        if (!daftarSiswaUnikMap.has(emailKey)) daftarSiswaUnikMap.set(emailKey, { email: p.email, nama: p.nama || 'Siswa' });
      }
   });
 
@@ -181,10 +175,18 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    let header = ["No", "Nama Siswa", "Email"];
+    let header = ["No", "Nama Siswa/Guru", "Email"];
     ujianKelasIni.forEach(u => header.push(u.judul));
     header.push("Total Skor");
     csvContent += header.join(";") + "\r\n";
+
+    // Masukkan Guru Dulu
+    guruKelasIni.forEach((emailGuru, idx) => {
+      let row = [`GURU ${idx+1}`, '👨‍🏫 Guru Pengajar', emailGuru];
+      ujianKelasIni.forEach(() => row.push('-'));
+      row.push('-');
+      csvContent += row.join(";") + "\r\n";
+    });
 
     rekapRapor.forEach((s, idx) => {
       let row = [idx + 1, s.nama, s.email];
@@ -196,7 +198,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Rapor_Kelas_${kelasAktif}.csv`);
+    link.setAttribute("download", `Data_Kelas_${kelasAktif}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -338,6 +340,24 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         } catch(e) { 
            alert("Gagal mengeluarkan siswa."); 
         }
+     }
+  };
+
+  const hapusGuruDariKelas = async (emailHapus) => {
+     if (emailHapus.toLowerCase() === superAdmin.toLowerCase()) {
+        return alert("❌ Anda tidak bisa mengeluarkan Pemilik Utama (Super Admin) dari kelas.");
+     }
+     
+     if (window.confirm(`Yakin ingin mengeluarkan guru (${emailHapus}) dari kelas ini?`)) {
+        const listBaru = daftarHalaqahAman.map(h => {
+           if (h.kode === kelasAktif) {
+              let gurus = h.emailGuru.split(',').map(e => e.trim());
+              gurus = gurus.filter(g => g.toLowerCase() !== emailHapus.toLowerCase());
+              return { ...h, emailGuru: gurus.join(', ') };
+           }
+           return h;
+        });
+        await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarHalaqah: listBaru });
      }
   };
 
@@ -697,7 +717,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      } 
   };
 
-  // 👈 STATE BARU UNTUK INPUT GURU AGAR BISA COPY-PASTE
   const [inputGuruBaru, setInputGuruBaru] = useState('');
 
   const tambahGuru = async (e) => {
@@ -707,7 +726,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     if ((pengaturan.daftarGuru || []).includes(emailBaru)) return alert("Email sudah ada!");
     const listBaru = [...(pengaturan.daftarGuru || []), emailBaru];
     await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarGuru: listBaru });
-    setInputGuruBaru(''); // Kosongkan input setelah berhasil
+    setInputGuruBaru(''); 
   };
 
   const hapusGuru = async (emailTarget) => {
@@ -872,23 +891,20 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Otorisasi Guru Admin</h2>
                      <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Daftarkan email guru di bawah ini agar mereka diizinkan masuk ke panel admin.</p>
                   </div>
-
-                  {/* 👈 FITUR PERBAIKAN: Form Kelola Guru dengan Controlled Input & Tahan Paste Blocker */}
                   <form onSubmit={tambahGuru} className="flex flex-col md:flex-row gap-3 mb-8">
                      <input 
-   type="email" 
-   value={inputGuruBaru}
-   onChange={(e) => setInputGuruBaru(e.target.value)}
-   onPaste={(e) => e.stopPropagation()} 
-   onContextMenu={(e) => e.stopPropagation()} 
-   onKeyDown={(e) => e.stopPropagation()} 
-   placeholder="Contoh: guru1@gmail.com" 
-   required 
-   className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" 
-/>
+                        type="email" 
+                        value={inputGuruBaru}
+                        onChange={(e) => setInputGuruBaru(e.target.value)}
+                        onPaste={(e) => e.stopPropagation()} 
+                        onContextMenu={(e) => e.stopPropagation()} 
+                        onKeyDown={(e) => e.stopPropagation()} 
+                        placeholder="Contoh: guru1@gmail.com" 
+                        required 
+                        className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" 
+                     />
                      <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-black px-6 py-4 rounded-2xl transition-colors shadow-lg active:scale-95 text-sm md:text-base">Daftarkan</button>
                   </form>
-
                   <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-700">
                      <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 ml-2">Daftar Guru Terdaftar ({(pengaturan.daftarGuru || []).length})</p>
                      <div className="space-y-3">
@@ -911,7 +927,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             </div>
          )}
 
-         {/* -------------------- TAB RAPOR & DATA SISWA -------------------- */}
+         {/* -------------------- TAB RAPOR & DATA SISWA (DENGAN DAFTAR GURU) -------------------- */}
          {tabAdmin === 'rapor' && halaqahMilikGuru.length > 0 && (
             <div className="space-y-6">
                <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-[2rem] border border-teal-200 dark:border-teal-800 transition-colors">
@@ -926,7 +942,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
                <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                     <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight">📊 Buku Rapor & Daftar Siswa Aktif</h2>
+                     <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight">📊 Data Anggota Kelas & Rapor</h2>
                      <button onClick={unduhExcel} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-colors whitespace-nowrap w-full md:w-auto">📥 Unduh Data (CSV)</button>
                   </div>
                   
@@ -935,8 +951,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         <thead>
                            <tr className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs uppercase tracking-widest border-b-2 border-slate-200 dark:border-slate-600">
                               <th className="p-4 font-black rounded-tl-xl">No</th>
-                              <th className="p-4 font-black sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nama Siswa</th>
-                              <th className="p-4 font-black border-r border-slate-200 dark:border-slate-600">Email (ID)</th>
+                              <th className="p-4 font-black sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Identitas Anggota</th>
+                              <th className="p-4 font-black border-r border-slate-200 dark:border-slate-600">Email (Akun Google)</th>
                               {ujianKelasIni.map((u, i) => (
                                  <th key={i} className="p-4 font-black text-center text-indigo-600 dark:text-indigo-400">{u.judul}</th>
                               ))}
@@ -945,6 +961,24 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                            </tr>
                         </thead>
                         <tbody>
+                           {/* 👈 FITUR BARU: RENDER DAFTAR GURU DI PALING ATAS TABEL */}
+                           {guruKelasIni.map((emailGuru, idx) => (
+                              <tr key={`guru-${idx}`} className="bg-purple-50/40 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/50 hover:bg-purple-100/50 dark:hover:bg-purple-900/40 transition-colors group">
+                                 <td className="p-4 font-bold text-purple-400 dark:text-purple-500 text-xs">G{idx+1}</td>
+                                 <td className="p-4 font-black text-purple-700 dark:text-purple-300 sticky left-0 bg-purple-50/90 dark:bg-[#1a1c2e] group-hover:bg-purple-100/90 dark:group-hover:bg-[#1f223a] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                                    👨‍🏫 Guru Pengajar <span className="text-[9px] bg-purple-600 text-white px-2 py-0.5 rounded-md ml-2 align-middle tracking-widest uppercase">GURU</span>
+                                 </td>
+                                 <td className="p-4 text-xs font-bold text-purple-600/70 dark:text-purple-400/70 border-r border-purple-100 dark:border-purple-800/50">{emailGuru}</td>
+                                 {ujianKelasIni.map((u, i) => (
+                                    <td key={i} className="p-4 font-bold text-center text-slate-400 dark:text-slate-600">-</td>
+                                 ))}
+                                 <td className="p-4 font-black text-center text-slate-400 dark:text-slate-600 border-l border-purple-100 dark:border-purple-800/50">-</td>
+                                 <td className="p-4 text-center">
+                                    <button onClick={() => hapusGuruDariKelas(emailGuru)} className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Keluarkan dari Kelas</button>
+                                 </td>
+                              </tr>
+                           ))}
+
                            {rekapRapor.length === 0 ? (
                               <tr>
                                  <td colSpan={5 + ujianKelasIni.length} className="p-8 text-center text-slate-400 italic">Belum ada murid yang bergabung di kelas ini.</td>
@@ -954,7 +988,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                  <tr key={idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
                                     <td className="p-4 font-bold text-slate-400">{idx + 1}</td>
                                     <td className="p-4 font-black text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
-                                       {siswa.nama} {idx===0 && <span className="text-lg ml-1">🥇</span>} {idx===1 && <span className="text-lg ml-1">🥈</span>} {idx===2 && <span className="text-lg ml-1">🥉</span>}
+                                       🎓 {siswa.nama} {idx===0 && <span className="text-lg ml-1">🥇</span>} {idx===1 && <span className="text-lg ml-1">🥈</span>} {idx===2 && <span className="text-lg ml-1">🥉</span>}
                                     </td>
                                     <td className="p-4 text-xs font-bold text-slate-500 border-r border-slate-100 dark:border-slate-700">{siswa.email}</td>
                                     {ujianKelasIni.map((u, i) => (
@@ -1212,7 +1246,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                              <div className="flex justify-between items-start mb-2">
                                 <div>
                                    <p className="text-white font-bold text-xs">{h.nama}</p>
-                                   <p className="text-[10px] text-emerald-300 mt-1">👨‍🏫 Guru: <span className="font-medium text-[9px]">{h.emailGuru}</span></p>
+                                   <p className="text-[9px] text-emerald-300 mt-1">Gunakan tab <b>Data Siswa</b> untuk atur Guru Pendamping</p>
                                 </div>
                                 <button onClick={() => hapusHalaqah(h.kode)} className="text-emerald-400 hover:text-red-400 font-bold text-xs transition-colors">✕ Hapus</button>
                              </div>

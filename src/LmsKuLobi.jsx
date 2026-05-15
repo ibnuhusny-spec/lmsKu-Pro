@@ -39,8 +39,11 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
   const [unreadForum, setUnreadForum] = useState(false);
   const [waktuSekarang, setWaktuSekarang] = useState(new Date());
   const [tampilQR, setTampilQR] = useState(false);
+  
+  // State untuk Ganti Nama
   const [isEditingNama, setIsEditingNama] = useState(false);
   const [namaBaruTemp, setNamaBaruTemp] = useState(user?.nama || '');
+  
   const [semuaAnggota, setSemuaAnggota] = useState([]);
   const [hasilTampil, setHasilTampil] = useState(null);
 
@@ -79,16 +82,28 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
   }, [semuaPesan, activeTab, user.kodeHalaqah, user.email]);
 
   const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === user.kodeHalaqah);
-  const daftarSiswaUnikMap = new Map();
-  semuaAnggota.forEach(a => daftarSiswaUnikMap.set(a.email, { email: a.email, nama: a.nama }));
-  setoranKelasIni.forEach(s => daftarSiswaUnikMap.set(s.email, { email: s.email, nama: s.nama }));
   
+  // LOGIKA REKAP NAMA SINKRON DENGAN ADMIN
+  const daftarSiswaUnikMap = new Map();
+  semuaAnggota.forEach(a => {
+     if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
+  });
+  setoranKelasIni.forEach(s => {
+     if (s.email) {
+        const emailKey = s.email.toLowerCase().trim();
+        const dataLama = daftarSiswaUnikMap.get(emailKey);
+        if (!dataLama || (dataLama.nama.includes('@') && s.nama && !s.nama.includes('@'))) {
+           daftarSiswaUnikMap.set(emailKey, { email: s.email, nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) });
+        }
+     }
+  });
+
   const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
   const rekapRapor = daftarSiswaUnik.map(siswa => {
       let totalSkor = 0; let totalDurasi = 0;
       jadwalUjianKelasIni.forEach(ujian => {
-         const s = setoranKelasIni.find(x => x.email === siswa.email && x.idUjian === ujian.docId);
-         if (s) { totalSkor += s.nilaiSistem; totalDurasi += (s.waktuPengerjaan || 0); }
+         const s = setoranKelasIni.find(x => (x.email || '').toLowerCase().trim() === siswa.email.toLowerCase().trim() && x.idUjian === ujian.docId);
+         if (s) { totalSkor += Number(s.nilaiSistem || 0); totalDurasi += Number(s.waktuPengerjaan || 0); }
       });
       return { ...siswa, totalSkor, totalDurasi };
   });
@@ -98,7 +113,7 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
      return a.totalDurasi - b.totalDurasi;
   });
 
-  const peringkatSayaIndex = rekapRapor.findIndex(s => s.email === user.email);
+  const peringkatSayaIndex = rekapRapor.findIndex(s => s.email.toLowerCase().trim() === user.email.toLowerCase().trim());
   const peringkatSayaObj = rekapRapor[peringkatSayaIndex] || { totalSkor: 0, totalDurasi: 0 };
   const top10 = rekapRapor.slice(0, 10);
 
@@ -149,7 +164,7 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit' });
   };
 
-  // 👈 MODAL HASIL CETAK RINCI
+  // MODAL HASIL CETAK RINCI
   if (hasilTampil) {
      const soalUjianIni = bankSoal ? bankSoal.filter(s => s.idUjian === hasilTampil.idUjian) : [];
      const jawabanPeserta = hasilTampil.jawaban || {};
@@ -302,7 +317,7 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
                              </div>
                              <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
                                <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
-                               {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                               {soal.teksTambahanArab && <p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
                                {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
                              </div>
                              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -346,7 +361,7 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
          </div>
       )}
 
-      {/* HEADER PROFIL KELAS */}
+      {/* HEADER PROFIL KELAS - DENGAN FITUR GANTI NAMA TERBARU */}
       <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-6 flex flex-wrap justify-between items-center shadow-md relative overflow-hidden shrink-0 rounded-b-3xl">
          <div className="absolute top-[-50%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
          <div className="relative z-10 w-full md:w-auto">
@@ -528,13 +543,13 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
                ) : (
                   <div className="space-y-3">
                      {top10.map((m, idx) => (
-                        <div key={idx} className={`flex justify-between items-center p-4 rounded-2xl shadow-sm border ${m.email === user.email ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
+                        <div key={idx} className={`flex justify-between items-center p-4 rounded-2xl shadow-sm border ${m.email.toLowerCase().trim() === user.email.toLowerCase().trim() ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
                            <div className="flex items-center gap-4">
                               <span className="text-3xl drop-shadow-sm w-10 text-center">
                                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : <span className="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-full text-sm font-black mx-auto">{idx+1}</span>}
                               </span>
                               <div>
-                                 <p className={`font-bold text-sm md:text-base ${m.email === user.email ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-800 dark:text-white'}`}>{m.nama}</p>
+                                 <p className={`font-bold text-sm md:text-base ${m.email.toLowerCase().trim() === user.email.toLowerCase().trim() ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-800 dark:text-white'}`}>{m.nama}</p>
                                  <p className="text-[10px] font-bold text-slate-400">⏱️ {formatWaktuTampil(m.totalDurasi)}</p>
                               </div>
                            </div>
