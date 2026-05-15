@@ -118,7 +118,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     };
   }, [kelasAktif]);
 
-
   const daftarSiswaUnikMap = new Map();
   semuaAnggota.forEach(a => {
      if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
@@ -346,7 +345,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const [editUjianId, setEditUjianId] = useState(null);
   
-  // 👈 FITUR KEMBALI: MENAMBAHKAN navigasiKetat
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
@@ -387,7 +385,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         tipeTarget: ujian.tipeTarget || 'semua', 
         targetSiswa: ujian.targetSiswa || '', 
         kunciLayar: ujian.kunciLayar || false, 
-        navigasiKetat: ujian.navigasiKetat || false, // Mengambil data lama saat klik Edit
+        navigasiKetat: ujian.navigasiKetat || false, 
         poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
@@ -613,7 +611,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      alert(`✅ Teks undangan WhatsApp Pintar berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
   };
 
-  // 👈 FITUR KEMBALI: GURU PENDAMPING
   const tambahGuruPendamping = async (kodeHalaqah) => {
       const emailBaruRaw = prompt("👥 MASUKKAN EMAIL GURU PENDAMPING:\n(Pastikan email ini sudah diotorisasi oleh Super Admin di tab 'Kelola Guru')");
       if (!emailBaruRaw) return;
@@ -688,14 +685,17 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      } 
   };
 
+  // 👈 PERBAIKAN: JADIKAN INPUT GURU BARU SEBAGAI CONTROLLED STATE AGAR COPY-PASTE LANCAR
+  const [inputGuruBaru, setInputGuruBaru] = useState('');
+
   const tambahGuru = async (e) => {
     e.preventDefault();
-    const emailBaru = e.target.emailGuru.value.trim().toLowerCase();
+    const emailBaru = inputGuruBaru.trim().toLowerCase();
     if (!emailBaru) return;
     if ((pengaturan.daftarGuru || []).includes(emailBaru)) return alert("Email sudah ada!");
     const listBaru = [...(pengaturan.daftarGuru || []), emailBaru];
     await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarGuru: listBaru });
-    e.target.reset();
+    setInputGuruBaru(''); // Kosongkan input setelah berhasil
   };
 
   const hapusGuru = async (emailTarget) => {
@@ -860,8 +860,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Otorisasi Guru Admin</h2>
                      <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Daftarkan email guru di bawah ini agar mereka diizinkan masuk ke panel admin.</p>
                   </div>
+                  {/* 👈 FITUR PERBAIKAN: FORM KELOLA GURU DENGAN CONTROLLED INPUT UNTUK COPY-PASTE */}
                   <form onSubmit={tambahGuru} className="flex flex-col md:flex-row gap-3 mb-8">
-                     <input name="emailGuru" type="email" placeholder="Contoh: guru1@gmail.com" required className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" />
+                     <input 
+                        value={inputGuruBaru}
+                        onChange={(e) => setInputGuruBaru(e.target.value)}
+                        type="email" 
+                        placeholder="Contoh: guru1@gmail.com" 
+                        required 
+                        className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" 
+                     />
                      <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-black px-6 py-4 rounded-2xl transition-colors shadow-lg active:scale-95 text-sm md:text-base">Daftarkan</button>
                   </form>
                   <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-700">
@@ -891,10 +899,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             <div className="space-y-6">
                <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-[2rem] border border-teal-200 dark:border-teal-800 transition-colors">
                   <h3 className="text-teal-700 dark:text-teal-400 font-black mb-3">➕ Tambah Siswa Manual</h3>
-                  <p className="text-xs text-teal-600 dark:text-teal-500 mb-4">Gunakan fitur ini jika ada murid yang kesulitan mendaftar mandiri. Masukkan namanya agar langsung masuk ke Buku Rapor & Daftar Target Ujian.</p>
+                  <p className="text-xs text-teal-600 dark:text-teal-500 mb-4">Gunakan fitur ini jika ada murid yang kesulitan mendaftar mandiri.</p>
                   <form onSubmit={tambahSiswaManual} className="flex flex-col md:flex-row gap-3">
-                     <input name="namaSiswa" placeholder="Nama Lengkap Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 dark:border-teal-700 focus:ring-2 ring-teal-400" />
-                     <input name="emailSiswa" type="email" placeholder="Email Google Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 dark:border-teal-700 focus:ring-2 ring-teal-400" />
+                     <input name="namaSiswa" placeholder="Nama Lengkap Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 focus:ring-2 ring-teal-400" />
+                     <input name="emailSiswa" type="email" placeholder="Email Google Siswa" required className="flex-1 p-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl outline-none font-bold text-sm border border-teal-200 focus:ring-2 ring-teal-400" />
                      <button type="submit" className="bg-teal-600 hover:bg-teal-500 text-white font-black px-6 py-3 rounded-xl transition-colors shadow-sm">Daftarkan</button>
                   </form>
                </div>
@@ -1187,16 +1195,14 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                              <div className="flex justify-between items-start mb-2">
                                 <div>
                                    <p className="text-white font-bold text-xs">{h.nama}</p>
-                                   {/* 👈 FITUR TAMPILAN EMAIL GURU TERDAFTAR */}
-                                   <p className="text-[10px] text-emerald-300 mt-1">👨‍🏫 Guru: <span className="font-medium text-[9px]">{h.emailGuru}</span></p>
+                                   <p className="text-[10px] text-emerald-300 font-medium">👨‍🏫 {h.emailGuru}</p>
                                 </div>
                                 <button onClick={() => hapusHalaqah(h.kode)} className="text-emerald-400 hover:text-red-400 font-bold text-xs transition-colors">✕ Hapus</button>
                              </div>
-                             <div className="flex flex-wrap items-center gap-2">
+                             <div className="flex flex-wrap items-center gap-2 mt-2">
                                 <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center min-w-[100px]">{h.kode}</div>
                                 <button onClick={() => setQrHalaqah(h)} className="bg-white/10 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors" title="Tampilkan QR Code Kelas">📱 QR</button>
                                 <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Info</button>
-                                {/* 👈 TOMBOL TAMBAH GURU PENDAMPING */}
                                 <button onClick={() => tambahGuruPendamping(h.kode)} className="bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-purple-500 transition-colors">👥 +Guru</button>
                                 <button onClick={() => salinKode(h.kode)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-400 transition-colors">📋 Salin</button>
                              </div>
@@ -1272,7 +1278,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
-                     {/* 👈 FITUR CHECKBOX NAVIGASI KETAT DIKEMBALIKAN */}
+                     {/* 👈 CHECKBOX NAVIGASI KETAT */}
                      <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
                         <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
                         <div className="flex flex-col">
@@ -1296,7 +1302,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                 <div className="flex items-center gap-2">
                                    <p className="text-white font-bold text-xs">{u.judul}</p>
                                    {u.kunciLayar && <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Ketat</span>}
-                                   {/* 👈 TAMPILAN LABEL NAVIGASI KETAT */}
                                    {u.navigasiKetat && <span className="bg-indigo-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase ml-1">Urut</span>}
                                 </div>
                                 <p className={`text-[10px] ${editUjianId === u.docId ? 'text-yellow-400' : 'text-orange-400'}`}>{u.durasi} Mnt • Poin: {u.poinBenar || 10}</p>
