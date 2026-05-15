@@ -129,16 +129,24 @@ function App() {
            const result = await signInWithPopup(auth, googleProvider);
            currentUser = result.user;
         }
-        const emailLogin = currentUser.email.toLowerCase();
-        const isSuperAdmin = emailLogin === SUPER_ADMIN;
-        const isGuruTerdaftar = pengaturan.daftarGuru.includes(emailLogin);
+        
+        // 1. Amankan email yang baru masuk (ubah ke huruf kecil dan buang spasi)
+        const emailLogin = currentUser.email.toLowerCase().trim();
+        const superAdminAman = SUPER_ADMIN.toLowerCase().trim();
+        
+        // 2. Amankan semua isi brankas daftar guru (ubah ke huruf kecil semua)
+        const daftarGuruAman = (pengaturan?.daftarGuru || []).map(email => email.toLowerCase().trim());
+
+        // 3. Bandingkan dengan adil
+        const isSuperAdmin = emailLogin === superAdminAman;
+        const isGuruTerdaftar = daftarGuruAman.includes(emailLogin);
 
         if (isSuperAdmin || isGuruTerdaftar) setHalaman('admin'); 
         else {
-           alert(`⛔ AKSES DITOLAK!\n\nEmail (${currentUser.email}) belum didaftarkan.`);
+           alert(`⛔ AKSES DITOLAK!\n\nEmail Google Anda (${currentUser.email}) belum diberi izin masuk ke Panel Guru.\nSilakan hubungi Super Admin untuk didaftarkan.`);
            signOut(auth); setGoogleUser(null);
         }
-     } catch (error) { alert("Gagal Admin: " + error.message); }
+     } catch (error) { alert("Gagal Masuk Admin: " + error.message); }
   };
 
   const handleLogoutGmail = () => { 
