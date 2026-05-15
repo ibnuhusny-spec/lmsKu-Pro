@@ -4,16 +4,12 @@ import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc, onSnapshot } fro
 
 const renderTeks = (text) => {
   if (!text) return null;
-  // MENGGUNAKAN NEW REGEXP AGAR VITE TIDAK ERROR PARSING
   const regexArab = new RegExp('([\\u0600-\\u06FF\\u064B-\\u065F\\u0670\\s]+)', 'g');
   const checkArab = new RegExp('[\\u0600-\\u06FF]');
-  
   const parts = text.split(regexArab);
   return parts.map((part, index) => (
     checkArab.test(part) ? (
-      <span key={index} className="teks-arab-besar inline-block px-1 align-middle text-indigo-900 dark:text-indigo-300" dir="rtl">
-        {part}
-      </span>
+      <span key={index} className="teks-arab-besar inline-block px-1 align-middle text-indigo-900 dark:text-indigo-300" dir="rtl">{part}</span>
     ) : (
       <span key={index} className="align-middle">{part}</span>
     )
@@ -22,7 +18,9 @@ const renderTeks = (text) => {
 
 const formatWaktuTampil = (detik) => {
   if (detik == null) return '-';
-  return `${Math.floor(detik / 60)}m ${detik % 60}s`;
+  const m = Math.floor(detik / 60);
+  const s = detik % 60;
+  return `${m}m ${s}s`;
 };
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -32,11 +30,7 @@ const formatTeksDenganLink = (teks) => {
   const urlRegex = new RegExp('(https?:\\/\\/[^\\s]+)', 'g');
   return teks.split(urlRegex).map((part, i) => {
     if (part.match(urlRegex)) {
-       return (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 underline font-black break-all hover:opacity-80">
-             {part}
-          </a>
-       );
+       return (<a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 underline font-black break-all hover:opacity-80">{part}</a>);
     }
     return <span key={i}>{part}</span>;
   });
@@ -47,17 +41,14 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [isSaving, setIsSaving] = useState(false);
   const [setoranTerpilih, setSetoranTerpilih] = useState(null);
   const [editId, setEditId] = useState(null);
-  
   const [nilaiManual, setNilaiManual] = useState("");
   const [skorPerSoal, setSkorPerSoal] = useState({});
-
   const [pesanText, setPesanText] = useState('');
   const [gambarUploadForum, setGambarUploadForum] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
   const [semuaAnggota, setSemuaAnggota] = useState([]); 
   const [editForumId, setEditForumId] = useState(null);
   const [teksEditForum, setTeksEditForum] = useState('');
-  
   const [qrHalaqah, setQrHalaqah] = useState(null);
   const scrollRef = useRef(null);
 
@@ -65,14 +56,18 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
   const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; 
   
-  const halaqahMilikGuru = daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
+  // 👈 POIN 5: LOGIKA MATA ELANG SUPER ADMIN
+  // Jika Super Admin, tampilkan SEMUA kelas. Jika Guru biasa, hanya miliknya.
+  const halaqahMilikGuru = isSuperAdmin 
+    ? daftarHalaqahAman 
+    : daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
-  const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
-  const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
+  const [kelasAktif, setKelasAktif] = useState('');
 
   const ujianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === kelasAktif);
   ujianKelasIni.sort((a, b) => new Date(a.waktuMulai) - new Date(b.waktuMulai));
 
+  const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
   const soalTampil = bankSoal.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranTampil = setoran.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
@@ -93,26 +88,18 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   useEffect(() => {
     if(!kelasAktif) return;
-    
     const unsubForum = onSnapshot(collection(db, "forum"), (snap) => {
       let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
       let pesanKelasIni = data.filter(d => d.kodeHalaqah === kelasAktif);
       pesanKelasIni.sort((a, b) => a.waktu - b.waktu);
       setSemuaPesan(pesanKelasIni);
-      setTimeout(() => { 
-         if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; 
-      }, 100);
+      setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
     });
-
     const unsubAnggota = onSnapshot(collection(db, "anggota"), (snap) => {
       let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
       setSemuaAnggota(data.filter(d => d.kodeHalaqah === kelasAktif));
     });
-
-    return () => { 
-       unsubForum(); 
-       unsubAnggota(); 
-    };
+    return () => { unsubForum(); unsubAnggota(); };
   }, [kelasAktif]);
 
   const daftarSiswaUnikMap = new Map();
@@ -122,18 +109,27 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   
   const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
 
+  // 👈 POIN 3: PERINGKAT DENGAN TIE-BREAKER DURASI
   const rekapRapor = daftarSiswaUnik.map(siswa => {
-     let totalSkor = 0;
-     const nilaiPerUjian = {};
-     ujianKelasIni.forEach(ujian => {
-        const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
-        const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
-        nilaiPerUjian[ujian.docId] = skor;
-        totalSkor += skor;
-     });
-     return { ...siswa, nilaiPerUjian, totalSkor };
+      let totalSkor = 0;
+      let totalDurasi = 0;
+      const nilaiPerUjian = {};
+      ujianKelasIni.forEach(ujian => {
+         const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
+         const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
+         const durasi = setoranSiswa ? (setoranSiswa.waktuPengerjaan || 0) : 0;
+         nilaiPerUjian[ujian.docId] = skor;
+         totalSkor += skor;
+         totalDurasi += durasi;
+      });
+      return { ...siswa, nilaiPerUjian, totalSkor, totalDurasi };
   });
-  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
+
+  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua
+  rekapRapor.sort((a, b) => {
+     if (b.totalSkor !== a.totalSkor) return b.totalSkor - a.totalSkor;
+     return a.totalDurasi - b.totalDurasi;
+  });
 
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -690,6 +686,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <h3 className="text-xl font-black mb-1 text-slate-800 dark:text-white">QR Code Kelas</h3>
                <p className="text-sm font-bold text-slate-500 mb-6 text-center">{qrHalaqah.nama} ({qrHalaqah.kode})</p>
                <div className="bg-white p-4 rounded-2xl shadow-inner border-4 border-indigo-100 mb-6">
+                  {/* PENGGUNAAN QUICKCHART AGAR TIDAK DIBLOKIR PROVIDER LOKAL */}
                   <img src={`https://quickchart.io/qr?size=250&text=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + qrHalaqah.kode)}`} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56" />
                </div>
                <p className="text-xs text-slate-400 text-center font-medium">Tampilkan ini di layar proyektor kelas atau bagikan gambarnya ke murid Anda.</p>
@@ -723,9 +720,11 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          {halaqahMilikGuru.length > 0 && tabAdmin !== 'guru' && (
             <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800 mb-6 flex flex-wrap gap-4 transition-colors">
                <div className="flex-1 min-w-[200px]">
-                  <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block mb-1">1. Pilih Kelas / Halaqah:</label>
+                  <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block mb-1">
+                     {isSuperAdmin ? '1. Pilih Kelas / Halaqah (Semua Guru):' : '1. Pilih Kelas / Halaqah Anda:'}
+                  </label>
                   <select value={kelasAktif} onChange={(e) => setKelasAktif(e.target.value)} className="w-full p-3 bg-white dark:bg-slate-700 text-indigo-800 dark:text-white font-bold text-sm rounded-xl outline-none focus:ring-2 ring-indigo-400 cursor-pointer shadow-sm border border-slate-200 dark:border-slate-600">
-                     {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama} ({h.kode})</option>)}
+                     {halaqahMilikGuru.map(h => <option key={h.kode} value={h.kode}>{h.nama} ({h.kode}) {isSuperAdmin ? `- Guru: ${h.emailGuru.split('@')[0]}` : ''}</option>)}
                   </select>
                </div>
                {tabAdmin !== 'forum' && tabAdmin !== 'rapor' && tabAdmin !== 'peringkat' && (
@@ -750,6 +749,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                   <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">🏆 Papan Peringkat Kelas</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">* Jika skor sama, diurutkan berdasarkan durasi tercepat</p>
                </div>
                
                {rekapRapor.length === 0 ? (
@@ -766,10 +766,13 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                               </span>
                               <div>
                                  <p className="font-bold text-slate-800 dark:text-white">{m.nama}</p>
-                                 <p className="text-[10px] text-slate-400">{m.email}</p>
+                                 <p className="text-[10px] font-bold text-indigo-400 mt-0.5">⏱️ Total Waktu: {formatWaktuTampil(m.totalDurasi)}</p>
                               </div>
                            </div>
-                           <span className="text-2xl font-black text-emerald-500">{m.totalSkor}</span>
+                           <div className="text-right">
+                              <span className="text-2xl font-black text-emerald-500 block leading-none">{m.totalSkor}</span>
+                              <span className="text-[8px] font-black text-slate-400 uppercase">Poin</span>
+                           </div>
                         </div>
                      ))}
                   </div>
@@ -1322,7 +1325,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      )}
 
                      <button type="submit" disabled={isSaving} className={`w-full py-4 text-white font-black rounded-2xl border-b-4 transition-all shadow-lg ${isSaving ? 'bg-slate-400 border-slate-600' : (editId ? 'bg-orange-500 border-orange-700 hover:bg-orange-600' : 'bg-indigo-500 border-indigo-700 hover:bg-indigo-600')} active:border-b-0 active:translate-y-1`}>
-                       {isSaving ? 'MENYIMPAN...' : (editId ? '🔄 UPDATE SOAL' : '💾 SIMPAN SOAL')}
+                        {isSaving ? 'MENYIMPAN...' : (editId ? '🔄 UPDATE SOAL' : '💾 SIMPAN SOAL')}
                      </button>
                    </form>
                  )}
@@ -1334,26 +1337,26 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   
                   {soalTampil.map((soal, idx) => (
                      <div key={soal.docId} className={`p-5 rounded-3xl border relative shadow-sm group transition-all ${editId === soal.docId ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-300 dark:border-orange-600' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
-                       <div className="absolute top-4 right-4 flex gap-2">
-                          <button onClick={() => salinSoal(soal)} className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-500 hover:text-white transition-colors" title="Salin Soal">📋</button>
-                          <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
-                          <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-50 hover:text-white transition-colors">🗑️</button>
-                       </div>
-                       <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.split('_').join(' ')}</span>
-                       
-                       {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
-                          <div className="mt-4 flex gap-2">
-                             {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-16 rounded border dark:border-slate-600" />}
-                             {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 mt-2" />}
-                          </div>
-                       )}
+                        <div className="absolute top-4 right-4 flex gap-2">
+                           <button onClick={() => salinSoal(soal)} className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-500 hover:text-white transition-colors" title="Salin Soal">📋</button>
+                           <button onClick={() => editSoal(soal)} className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-lg font-bold text-sm hover:bg-orange-500 hover:text-white transition-colors">✏️</button>
+                           <button onClick={() => hapusSoal(soal.docId)} className="w-8 h-8 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg font-bold text-sm hover:bg-red-50 hover:text-white transition-colors">🗑️</button>
+                        </div>
+                        <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full">Soal {idx+1} • {soal.tipe.split('_').join(' ')}</span>
+                        
+                        {(soal.mediaSoalGambar || soal.mediaSoalSuara) && (
+                           <div className="mt-4 flex gap-2">
+                              {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-16 rounded border dark:border-slate-600" />}
+                              {soal.mediaSoalSuara && <audio controls src={soal.mediaSoalSuara} className="h-10 mt-2" />}
+                           </div>
+                        )}
 
-                       <div className={`mt-4 ${soal.bahasa === 'ar' ? 'text-right' : 'text-left'}`} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
-                         <p className="font-bold text-slate-700 dark:text-white text-lg leading-relaxed">{renderTeks(soal.teksSoal)}</p>
-                         {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
-                       </div>
-                       {soal.tipe.startsWith('pilihan') && (<div className="mt-4 pt-3 border-t dark:border-slate-700 text-xs font-bold"><span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md transition-colors">🔑 Kunci: {Array.isArray(soal.kunci) ? soal.kunci.join(' | ') : soal.kunci}</span></div>)}
-                       {soal.tipe === 'isian' && (<div className="mt-4 pt-3 border-t dark:border-slate-700 text-xs font-bold"><span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md transition-colors" dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>🔑 Kunci: {soal.kunci}</span></div>)}
+                        <div className={`mt-4 ${soal.bahasa === 'ar' ? 'text-right' : 'text-left'}`} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
+                          <p className="font-bold text-slate-700 dark:text-white text-lg leading-relaxed">{renderTeks(soal.teksSoal)}</p>
+                          {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                        </div>
+                        {soal.tipe.startsWith('pilihan') && (<div className="mt-4 pt-3 border-t dark:border-slate-700 text-xs font-bold"><span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md transition-colors">🔑 Kunci: {Array.isArray(soal.kunci) ? soal.kunci.join(' | ') : soal.kunci}</span></div>)}
+                        {soal.tipe === 'isian' && (<div className="mt-4 pt-3 border-t dark:border-slate-700 text-xs font-bold"><span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md transition-colors" dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>🔑 Kunci: {soal.kunci}</span></div>)}
                      </div>
                   ))}
                </div>
