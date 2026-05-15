@@ -159,30 +159,59 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, keUjian, keLogin, u
         <div className="fixed inset-0 z-[100] flex flex-col bg-slate-100 dark:bg-slate-900 overflow-y-auto">
            <style>{`
              @media print {
-               .no-print { display: none !important; }
+               @page { size: A4 portrait; margin: 1cm; }
                body { background: white !important; }
-               .cetak-area { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+               .no-print { display: none !important; }
+               
+               /* Menyembunyikan elemen latar belakang agar printer fokus ke sertifikat */
+               body * { visibility: hidden; }
+               .cetak-wrapper, .cetak-wrapper * { visibility: visible; }
+               
+               /* Memaksa elemen cetak maju ke depan dan berwarna hitam/warna tebal */
+               .cetak-wrapper { position: absolute; left: 0; top: 0; width: 100%; background: white !important; }
+               .cetak-area { border: 2px solid #ccc !important; box-shadow: none !important; border-radius: 15px !important; color: black !important; background: white !important; padding: 40px !important; width: 100% !important; margin: 0 !important; }
+               .cetak-area p, .cetak-area h1, .cetak-area span { color: black !important; }
+               
+               /* Paksa warna hijau stabilo agar tetap terang di PDF */
+               .print-bg-emerald { background-color: #ecfdf5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; border: 2px solid #10b981 !important; }
+               .print-text-emerald { color: #10b981 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
              }
            `}</style>
+           
            <div className="bg-white dark:bg-slate-800 p-4 flex justify-between items-center shadow-md no-print sticky top-0 z-50">
-              <button onClick={() => setHasilTampil(null)} className="text-slate-500 font-bold bg-slate-100 px-4 py-2 rounded-xl">← Kembali</button>
-              <button onClick={() => window.print()} className="bg-indigo-500 text-white font-bold px-4 py-2 rounded-xl">🖨️ Cetak / PDF</button>
+              <button onClick={() => setHasilTampil(null)} className="text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-xl hover:bg-slate-200 transition-colors">← Kembali</button>
+              <button onClick={() => window.print()} className="bg-indigo-500 text-white font-bold px-4 py-2 rounded-xl shadow-md hover:bg-indigo-600 transition-colors">🖨️ Cetak / Simpan PDF</button>
            </div>
-           <div className="max-w-3xl w-full mx-auto p-8 my-8 bg-white dark:bg-slate-800 shadow-xl border-t-8 border-emerald-500 rounded-3xl cetak-area">
-              <div className="text-center mb-6 pb-6 border-b border-dashed border-slate-200">
-                 <span className="text-6xl mb-4 block">🎓</span>
-                 <h1 className="text-2xl font-black mb-1">Bukti Hasil Ujian</h1>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{hasilTampil.kuisJudul}</p>
-              </div>
-              <div className="text-left space-y-3 mb-8">
-                 <p className="text-[10px] font-black text-slate-400 uppercase">Nama Peserta</p>
-                 <p className="font-bold text-slate-800 dark:text-white text-lg">{user.nama}</p>
-                 <p className="text-[10px] font-black text-slate-400 uppercase mt-2">Waktu Selesai</p>
-                 <p className="font-bold text-slate-700 dark:text-slate-300">{hasilTampil.tanggal}</p>
-              </div>
-              <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 text-center">
-                 <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Skor Anda</p>
-                 <p className="font-black text-emerald-500 text-6xl">{hasilTampil.nilaiSistem}</p>
+           
+           <div className="cetak-wrapper w-full flex-1 p-4 md:p-8 flex justify-center items-start">
+              <div className="max-w-2xl w-full p-8 bg-white dark:bg-slate-800 shadow-xl border-t-8 border-emerald-500 rounded-3xl cetak-area">
+                 <div className="text-center mb-6 pb-6 border-b border-dashed border-slate-200 dark:border-slate-700">
+                    <span className="text-6xl mb-4 block">🎓</span>
+                    <h1 className="text-2xl font-black mb-1 dark:text-white">Bukti Hasil Ujian</h1>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{hasilTampil.kuisJudul}</p>
+                 </div>
+                 
+                 <div className="text-left space-y-3 mb-8">
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase">Nama Peserta</p>
+                       <p className="font-bold text-slate-800 dark:text-white text-lg">{user.nama}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Kelas / Akun</p>
+                          <p className="font-bold text-indigo-600 dark:text-indigo-400">{user.halaqah} / {user.email.split('@')[0]}</p>
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase">Waktu Selesai</p>
+                          <p className="font-bold text-slate-700 dark:text-slate-300">{hasilTampil.tanggal || formatTgl(hasilTampil.tanggalReal) || 'Selesai'}</p>
+                       </div>
+                    </div>
+                 </div>
+                 
+                 <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800 text-center print-bg-emerald">
+                    <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1 print-text-emerald">Skor Akhir Anda</p>
+                    <p className="font-black text-emerald-500 text-7xl drop-shadow-sm print-text-emerald">{hasilTampil.nilaiSistem}</p>
+                 </div>
               </div>
            </div>
         </div>
