@@ -90,14 +90,29 @@ function App() {
 
   // FUNGSI GANTI NAMA MANDIRI
   const handleUpdateNamaSiswa = async (namaBaru) => {
-     if (!user) return;
-     try {
-        await updateDoc(doc(db, "anggota", `${user.kodeHalaqah}_${user.email}`), { nama: namaBaru });
-        const userUpdate = { ...user, nama: namaBaru };
-        setUser(userUpdate);
-        localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(userUpdate));
-        alert("✅ Nama berhasil diperbarui!");
-     } catch (e) { alert("Gagal update nama."); }
+    if (!namaBaru.trim()) return;
+    
+    // 1. Update layar murid saat ini
+    const userBaru = { ...user, nama: namaBaru };
+    setUser(userBaru);
+    localStorage.setItem('lms_user', JSON.stringify(userBaru));
+
+    try {
+      // 2. Update di Buku Absen (Tabel Anggota)
+      const idAnggota = `${user.kodeHalaqah}_${user.email.toLowerCase()}`;
+      await setDoc(doc(db, "anggota", idAnggota), { nama: namaBaru }, { merge: true });
+
+      // 3. Menyelam ke database dan ubah nama di SEMUA riwayat ujian anak ini
+      const q = query(collection(db, "setoran"), where("email", "==", user.email), where("kodeHalaqah", "==", user.kodeHalaqah));
+      const snap = await getDocs(q);
+      snap.forEach(async (d) => {
+        await updateDoc(doc(db, "setoran", d.id), { nama: namaBaru });
+      });
+
+      alert("✅ Nama berhasil diperbarui! Admin dan Guru sekarang akan melihat nama baru Anda.");
+    } catch (error) {
+      alert("Terjadi kesalahan saat menyinkronkan nama ke server.");
+    }
   };
 
   const handleLoginSiswa = async () => {

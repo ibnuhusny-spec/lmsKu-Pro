@@ -358,9 +358,9 @@ const LmsKuLobi = ({ user, pengaturan, daftarUjian, setoran, bankSoal, keUjian, 
             <div className="mt-2 flex items-center gap-2">
                {isEditingNama ? (
                   <div className="flex gap-2">
-                     <input type="text" value={namaBaruTemp} onChange={e=>setNamaBaruTemp(e.target.value)} className="px-2 py-1 rounded text-slate-800 text-sm font-bold w-40 outline-none" />
-                     <button onClick={() => { updateNama(namaBaruTemp); setIsEditingNama(false); }} className="bg-emerald-500 text-white text-xs px-2 py-1 rounded font-bold">Save</button>
-                     <button onClick={() => { setNamaBaruTemp(user.nama); setIsEditingNama(false); }} className="bg-slate-300 text-slate-700 text-xs px-2 py-1 rounded font-bold">X</button>
+                     <input type="text" value={namaBaruTemp} onChange={e=>setNamaBaruTemp(e.target.value)} className="px-3 py-1 rounded-lg bg-white/20 text-white placeholder-white/50 border border-white/40 text-sm font-bold w-48 outline-none focus:bg-white focus:text-indigo-900 transition-all shadow-inner" placeholder="Ketik nama baru..." />
+                     <button onClick={() => { updateNama(namaBaruTemp); setIsEditingNama(false); }} className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs px-3 py-1 rounded-lg font-bold shadow-md transition-colors">Simpan</button>
+                     <button onClick={() => { setNamaBaruTemp(user.nama); setIsEditingNama(false); }} className="bg-slate-800/40 hover:bg-slate-800/60 text-white text-xs px-3 py-1 rounded-lg font-bold transition-colors">Batal</button>
                   </div>
                ) : (
                   <div className="flex items-center gap-2">

@@ -66,9 +66,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
   const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; 
   
+  // 👈 LOGIKA FILTER: BACA SEMUA EMAIL GURU DI DALAM ARRAY/STRING
   const halaqahMilikGuru = isSuperAdmin 
     ? daftarHalaqahAman 
-    : daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
+    : daftarHalaqahAman.filter(h => h.emailGuru && h.emailGuru.toLowerCase().includes(emailAdmin.toLowerCase()));
   
   const [kelasAktif, setKelasAktif] = useState('');
   const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
@@ -119,42 +120,23 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   }, [kelasAktif]);
 
 
-  // 👈 LOGIKA KEBAL PELURU (BULLETPROOF) UNTUK REKAP RAPOR & NAMA
   const daftarSiswaUnikMap = new Map();
-  
-  // 1. Prioritaskan data Anggota (Daftar Absensi/Input Manual/Edit Pensil)
   semuaAnggota.forEach(a => {
-     if (a.email) {
-        daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { 
-           email: a.email, 
-           nama: a.nama || 'Siswa' 
-        });
-     }
+     if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
   });
-
-  // 2. Jika di daftar absensi belum ada, ATAU namanya masih pakai email (mengandung @),
-  // kita timpa dengan nama dari form Setoran Ujian (yang biasanya lebih valid).
   setoranKelasIni.forEach(s => {
      if (s.email) {
         const emailKey = s.email.toLowerCase().trim();
         const dataLama = daftarSiswaUnikMap.get(emailKey);
-        
         if (!dataLama || (dataLama.nama.includes('@') && s.nama && !s.nama.includes('@'))) {
-           daftarSiswaUnikMap.set(emailKey, { 
-              email: s.email, 
-              nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) 
-           });
+           daftarSiswaUnikMap.set(emailKey, { email: s.email, nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) });
         }
      }
   });
-
-  // 3. Tambahkan dari forum hanya jika benar-benar belum terdata sama sekali
   semuaPesan.filter(p => p.peran === 'siswa').forEach(p => {
      if (p.email) {
         const emailKey = p.email.toLowerCase().trim();
-        if (!daftarSiswaUnikMap.has(emailKey)) {
-           daftarSiswaUnikMap.set(emailKey, { email: p.email, nama: p.nama || 'Siswa' });
-        }
+        if (!daftarSiswaUnikMap.has(emailKey)) daftarSiswaUnikMap.set(emailKey, { email: p.email, nama: p.nama || 'Siswa' });
      }
   });
 
@@ -166,7 +148,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       const nilaiPerUjian = {};
       
       ujianKelasIni.forEach(ujian => {
-         // Pencarian aman tanpa takut huruf besar/kecil
          const setoranSiswa = setoranKelasIni.find(s => 
             (s.email || '').toLowerCase().trim() === (siswa.email || '').toLowerCase().trim() 
             && s.idUjian === ujian.docId
@@ -183,12 +164,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       return { ...siswa, nilaiPerUjian, totalSkor, totalDurasi };
   });
 
-  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua
   rekapRapor.sort((a, b) => {
      if (b.totalSkor !== a.totalSkor) return b.totalSkor - a.totalSkor;
      return a.totalDurasi - b.totalDurasi;
   });
-
 
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -368,7 +347,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const [editUjianId, setEditUjianId] = useState(null);
   
-  // 👈 TAMBAHKAN PROPERTI NAVIGASI KETAT DI STATE
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
@@ -633,6 +611,33 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      
      navigator.clipboard.writeText(teksWA);
      alert(`✅ Teks undangan WhatsApp Pintar berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
+  };
+
+  // 👈 POIN 3: FITUR TAMBAH GURU PENDAMPING
+  const tambahGuruPendamping = async (kodeHalaqah) => {
+      const emailBaruRaw = prompt("👥 MASUKKAN EMAIL GURU PENDAMPING:\n(Pastikan email ini sudah diotorisasi oleh Super Admin di tab 'Kelola Guru')");
+      if (!emailBaruRaw) return;
+      
+      const emailBaru = emailBaruRaw.trim().toLowerCase();
+      const daftarGuruResmi = pengaturan.daftarGuru || [];
+      
+      if (!daftarGuruResmi.includes(emailBaru) && emailBaru !== superAdmin.toLowerCase()) {
+         return alert("❌ Email ini belum punya izin akses Panel Admin. Minta Super Admin mendaftarkannya terlebih dahulu!");
+      }
+
+      const listBaru = daftarHalaqahAman.map(h => {
+         if (h.kode === kodeHalaqah) {
+            if (h.emailGuru.toLowerCase().includes(emailBaru)) {
+               alert("Guru tersebut sudah ada di kelas ini.");
+               return h;
+            }
+            return { ...h, emailGuru: h.emailGuru + ', ' + emailBaru };
+         }
+         return h;
+      });
+      
+      await setDoc(doc(db, "sistem", "pengaturan"), { ...pengaturan, daftarHalaqah: listBaru });
+      alert("✅ Guru Pendamping berhasil ditambahkan ke kelas ini!");
   };
 
   const bukaEvaluasi = (s) => { 
@@ -1183,10 +1188,12 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                 <p className="text-white font-bold text-xs">{h.nama}</p>
                                 <button onClick={() => hapusHalaqah(h.kode)} className="text-emerald-400 hover:text-red-400 font-bold text-xs transition-colors">✕ Hapus</button>
                              </div>
-                             <div className="flex items-center gap-2">
-                                <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center">{h.kode}</div>
+                             <div className="flex flex-wrap items-center gap-2">
+                                <div className="bg-emerald-900 text-emerald-400 font-mono tracking-widest font-black py-2 px-4 rounded-lg flex-1 text-center min-w-[100px]">{h.kode}</div>
                                 <button onClick={() => setQrHalaqah(h)} className="bg-white/10 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors" title="Tampilkan QR Code Kelas">📱 QR</button>
-                                <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Undangan</button>
+                                <button onClick={() => salinUndanganWA(h)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-500 transition-colors">💬 Info</button>
+                                {/* 👈 TOMBOL TAMBAH GURU PENDAMPING */}
+                                <button onClick={() => tambahGuruPendamping(h.kode)} className="bg-purple-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-purple-500 transition-colors">👥 +Guru</button>
                                 <button onClick={() => salinKode(h.kode)} className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-400 transition-colors">📋 Salin</button>
                              </div>
                           </div>
@@ -1261,7 +1268,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
-                     {/* 👈 CHECKBOX NAVIGASI KETAT */}
                      <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
                         <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
                         <div className="flex flex-col">
@@ -1291,7 +1297,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                              </div>
                              <div className="flex gap-1 shrink-0">
                                 <button onClick={() => editUjian(u)} className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Edit</button>
-                                <button onClick={() => hapusUjian(u.docId)} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Hapus</button>
+                                <button onClick={() => hapusUjian(u.docId)} className="bg-red-500/20 text-red-400 hover:bg-red-50 hover:text-white font-bold text-[10px] px-2 py-1 rounded-lg transition-colors">Hapus</button>
                              </div>
                           </div>
                         ))
