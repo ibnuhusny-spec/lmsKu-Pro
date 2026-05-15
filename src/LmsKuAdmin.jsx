@@ -21,7 +21,9 @@ const renderTeks = (text) => {
 
 const formatWaktuTampil = (detik) => {
   if (detik == null) return '-';
-  return `${Math.floor(detik / 60)}m ${detik % 60}s`;
+  const m = Math.floor(detik / 60);
+  const s = detik % 60;
+  return `${m}m ${s}s`;
 };
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -68,7 +70,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     ? daftarHalaqahAman 
     : daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
-  const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
+  const [kelasAktif, setKelasAktif] = useState('');
   const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
 
   const ujianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === kelasAktif);
@@ -116,25 +118,52 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
     };
   }, [kelasAktif]);
 
+
+  // 👈 LOGIKA KEBAL PELURU (BULLETPROOF) UNTUK REKAP RAPOR & PERINGKAT
   const daftarSiswaUnikMap = new Map();
-  semuaAnggota.forEach(a => daftarSiswaUnikMap.set(a.email, { email: a.email, nama: a.nama }));
-  setoranKelasIni.forEach(s => daftarSiswaUnikMap.set(s.email, { email: s.email, nama: s.nama }));
-  semuaPesan.filter(p => p.peran === 'siswa').forEach(p => daftarSiswaUnikMap.set(p.email, { email: p.email, nama: p.nama }));
   
+  // Mengamankan huruf besar/kecil dan spasi berlebih
+  semuaAnggota.forEach(a => {
+     if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
+  });
+  setoranKelasIni.forEach(s => {
+     if (s.email) daftarSiswaUnikMap.set(s.email.toLowerCase().trim(), { email: s.email, nama: s.nama || 'Siswa' });
+  });
+  semuaPesan.filter(p => p.peran === 'siswa').forEach(p => {
+     if (p.email) daftarSiswaUnikMap.set(p.email.toLowerCase().trim(), { email: p.email, nama: p.nama || 'Siswa' });
+  });
+
   const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
 
   const rekapRapor = daftarSiswaUnik.map(siswa => {
-     let totalSkor = 0;
-     const nilaiPerUjian = {};
-     ujianKelasIni.forEach(ujian => {
-        const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
-        const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
-        nilaiPerUjian[ujian.docId] = skor;
-        totalSkor += skor;
-     });
-     return { ...siswa, nilaiPerUjian, totalSkor };
+      let totalSkor = 0;
+      let totalDurasi = 0;
+      const nilaiPerUjian = {};
+      
+      ujianKelasIni.forEach(ujian => {
+         // Pencarian aman tanpa takut huruf besar/kecil
+         const setoranSiswa = setoranKelasIni.find(s => 
+            (s.email || '').toLowerCase().trim() === (siswa.email || '').toLowerCase().trim() 
+            && s.idUjian === ujian.docId
+         );
+         
+         const skor = setoranSiswa ? (Number(setoranSiswa.nilaiSistem) || 0) : 0;
+         const durasi = setoranSiswa ? (Number(setoranSiswa.waktuPengerjaan) || 0) : 0;
+         
+         nilaiPerUjian[ujian.docId] = skor;
+         totalSkor += skor;
+         totalDurasi += durasi;
+      });
+      
+      return { ...siswa, nilaiPerUjian, totalSkor, totalDurasi };
   });
-  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
+
+  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua (Ini akan memunculkan murid 100 dengan tepat)
+  rekapRapor.sort((a, b) => {
+     if (b.totalSkor !== a.totalSkor) return b.totalSkor - a.totalSkor;
+     return a.totalDurasi - b.totalDurasi;
+  });
+
 
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -278,6 +307,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   };
 
+  // ONE-CLICK HAPUS SEMUA
   const keluarkanSiswaBulk = async (emailSiswa, namaSiswa) => {
      const pesan = `⚠️ PERINGATAN: Hapus permanen ${namaSiswa} dari kelas ${kelasAktif}?\n\nSistem juga akan MENGHAPUS SEMUA NILAI dan SETORAN TUGAS siswa ini secara otomatis!`;
 
@@ -286,7 +316,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            const batch = writeBatch(db);
            batch.delete(doc(db, "anggota", `${kelasAktif}_${emailSiswa.toLowerCase()}`));
 
-           const q = query(collection(db, "setoran"), where("email", "==", emailSiswa.toLowerCase()), where("kodeHalaqah", "==", kelasAktif));
+           const q = query(collection(db, "setoran"), where("email", "==", emailSiswa), where("kodeHalaqah", "==", kelasAktif));
            const snap = await getDocs(q);
            snap.forEach(d => batch.delete(d.ref));
 
@@ -314,7 +344,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const [editUjianId, setEditUjianId] = useState(null);
   
-  // 👈 TAMBAHKAN PROPERTY NAVIGASI KETAT DI STATE
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
@@ -355,7 +384,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         tipeTarget: ujian.tipeTarget || 'semua', 
         targetSiswa: ujian.targetSiswa || '', 
         kunciLayar: ujian.kunciLayar || false, 
-        navigasiKetat: ujian.navigasiKetat || false, // 👈 LOAD PENGATURAN LAMA
+        navigasiKetat: ujian.navigasiKetat || false, 
         poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
@@ -686,7 +715,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   return (
     <div className="p-4 md:p-8 font-sans max-w-7xl mx-auto pb-32">
       
-      {/* CSS KHUSUS UNTUK PRINT WORD */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -695,7 +723,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         }
       `}</style>
 
-      {/* MODAL QR CODE HALAQAH */}
       {qrHalaqah && (
          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 no-print">
             <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full relative">
@@ -703,7 +730,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <h3 className="text-xl font-black mb-1 text-slate-800 dark:text-white">QR Code Kelas</h3>
                <p className="text-sm font-bold text-slate-500 mb-6 text-center">{qrHalaqah.nama} ({qrHalaqah.kode})</p>
                <div className="bg-white p-4 rounded-2xl shadow-inner border-4 border-indigo-100 mb-6">
-                  {/* PENGGUNAAN QUICKCHART AGAR TIDAK DIBLOKIR PROVIDER LOKAL */}
                   <img src={`https://quickchart.io/qr?size=250&text=${encodeURIComponent(window.location.origin + window.location.pathname + '?kelas=' + qrHalaqah.kode)}`} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56" />
                </div>
                <p className="text-xs text-slate-400 text-center font-medium">Tampilkan ini di layar proyektor kelas atau bagikan gambarnya ke murid Anda.</p>
@@ -711,7 +737,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          </div>
       )}
 
-      {/* NAVBAR ADMIN */}
       <div className={`p-4 rounded-3xl mb-6 shadow-md flex flex-wrap justify-between items-center transition-colors no-print ${isSuperAdmin ? 'bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-900 dark:to-indigo-900' : 'bg-indigo-600 dark:bg-indigo-900'}`}>
          <div>
             <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{isSuperAdmin ? '👑 PANEL SUPER ADMIN' : 'Ruang Kerja Eksklusif Guru'}</p>
@@ -720,7 +745,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          <button onClick={keLogin} className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all">🚪 Log Out</button>
       </div>
 
-      {/* MENU TAB ADMIN (TAMPIL DI ATAS UNTUK DESKTOP, SEMBUNYI DI HP) */}
       <div className="hidden md:flex gap-2 overflow-x-auto pb-4 mb-6 border-b border-slate-200 dark:border-slate-700 no-print transition-colors">
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm shrink-0 transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Jadwal & Soal</button>
           <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm shrink-0 transition-all ${tabAdmin === 'forum' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>💬 Forum Kelas</button>
@@ -733,7 +757,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       </div>
 
       <div className="no-print">
-         {/* PILIHAN KELAS UMUM */}
          {halaqahMilikGuru.length > 0 && tabAdmin !== 'guru' && (
             <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800 mb-6 flex flex-wrap gap-4 transition-colors">
                <div className="flex-1 min-w-[200px]">
@@ -766,6 +789,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                   <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">🏆 Papan Peringkat Kelas</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">* Jika skor sama, diurutkan berdasarkan durasi tercepat</p>
                </div>
                
                {rekapRapor.length === 0 ? (
@@ -783,9 +807,13 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                               <div>
                                  <p className="font-bold text-slate-800 dark:text-white">{m.nama}</p>
                                  <p className="text-[10px] text-slate-400">{m.email}</p>
+                                 <p className="text-[10px] text-indigo-400 font-bold mt-0.5">⏱️ Total Waktu: {formatWaktuTampil(m.totalDurasi)}</p>
                               </div>
                            </div>
-                           <span className="text-2xl font-black text-emerald-500">{m.totalSkor}</span>
+                           <div className="text-right">
+                              <span className="text-2xl font-black text-emerald-500 block leading-none">{m.totalSkor}</span>
+                              <span className="text-[8px] font-black text-slate-400 uppercase">Poin</span>
+                           </div>
                         </div>
                      ))}
                   </div>
@@ -1208,7 +1236,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
-                     {/* 👈 CHECKBOX BARU: NAVIGASI KETAT */}
                      <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
                         <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
                         <div className="flex flex-col">
