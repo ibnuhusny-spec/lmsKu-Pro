@@ -1,15 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db } from './firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, setDoc, onSnapshot, query, where, getDocs, writeBatch } from 'firebase/firestore';
 
 const renderTeks = (text) => {
   if (!text) return null;
   const regexArab = new RegExp('([\\u0600-\\u06FF\\u064B-\\u065F\\u0670\\s]+)', 'g');
   const checkArab = new RegExp('[\\u0600-\\u06FF]');
+  
   const parts = text.split(regexArab);
   return parts.map((part, index) => (
     checkArab.test(part) ? (
-      <span key={index} className="teks-arab-besar inline-block px-1 align-middle text-indigo-900 dark:text-indigo-300" dir="rtl">{part}</span>
+      <span key={index} className="teks-arab-besar inline-block px-1 align-middle text-indigo-900 dark:text-indigo-300" dir="rtl">
+        {part}
+      </span>
     ) : (
       <span key={index} className="align-middle">{part}</span>
     )
@@ -18,9 +21,7 @@ const renderTeks = (text) => {
 
 const formatWaktuTampil = (detik) => {
   if (detik == null) return '-';
-  const m = Math.floor(detik / 60);
-  const s = detik % 60;
-  return `${m}m ${s}s`;
+  return `${Math.floor(detik / 60)}m ${detik % 60}s`;
 };
 
 const generateKodeAcak = () => Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -30,7 +31,11 @@ const formatTeksDenganLink = (teks) => {
   const urlRegex = new RegExp('(https?:\\/\\/[^\\s]+)', 'g');
   return teks.split(urlRegex).map((part, i) => {
     if (part.match(urlRegex)) {
-       return (<a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 underline font-black break-all hover:opacity-80">{part}</a>);
+       return (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 underline font-black break-all hover:opacity-80">
+             {part}
+          </a>
+       );
     }
     return <span key={i}>{part}</span>;
   });
@@ -41,14 +46,17 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const [isSaving, setIsSaving] = useState(false);
   const [setoranTerpilih, setSetoranTerpilih] = useState(null);
   const [editId, setEditId] = useState(null);
+  
   const [nilaiManual, setNilaiManual] = useState("");
   const [skorPerSoal, setSkorPerSoal] = useState({});
+
   const [pesanText, setPesanText] = useState('');
   const [gambarUploadForum, setGambarUploadForum] = useState(null);
   const [semuaPesan, setSemuaPesan] = useState([]);
   const [semuaAnggota, setSemuaAnggota] = useState([]); 
   const [editForumId, setEditForumId] = useState(null);
   const [teksEditForum, setTeksEditForum] = useState('');
+  
   const [qrHalaqah, setQrHalaqah] = useState(null);
   const scrollRef = useRef(null);
 
@@ -56,18 +64,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
   const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; 
   
-  // 👈 POIN 5: LOGIKA MATA ELANG SUPER ADMIN
-  // Jika Super Admin, tampilkan SEMUA kelas. Jika Guru biasa, hanya miliknya.
   const halaqahMilikGuru = isSuperAdmin 
     ? daftarHalaqahAman 
     : daftarHalaqahAman.filter(h => h.emailGuru === emailAdmin);
   
-  const [kelasAktif, setKelasAktif] = useState('');
+  const [kelasAktif, setKelasAktif] = useState(halaqahMilikGuru.length > 0 ? halaqahMilikGuru[0].kode : '');
+  const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
 
   const ujianKelasIni = daftarUjian.filter(u => u.kodeHalaqah === kelasAktif);
   ujianKelasIni.sort((a, b) => new Date(a.waktuMulai) - new Date(b.waktuMulai));
 
-  const [ujianAktifAdmin, setUjianAktifAdmin] = useState('');
   const soalTampil = bankSoal.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranTampil = setoran.filter(s => s.kodeHalaqah === kelasAktif && s.idUjian === ujianAktifAdmin);
   const setoranKelasIni = setoran.filter(s => s.kodeHalaqah === kelasAktif);
@@ -88,18 +94,26 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   useEffect(() => {
     if(!kelasAktif) return;
+    
     const unsubForum = onSnapshot(collection(db, "forum"), (snap) => {
       let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
       let pesanKelasIni = data.filter(d => d.kodeHalaqah === kelasAktif);
       pesanKelasIni.sort((a, b) => a.waktu - b.waktu);
       setSemuaPesan(pesanKelasIni);
-      setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
+      setTimeout(() => { 
+         if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; 
+      }, 100);
     });
+
     const unsubAnggota = onSnapshot(collection(db, "anggota"), (snap) => {
       let data = snap.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
       setSemuaAnggota(data.filter(d => d.kodeHalaqah === kelasAktif));
     });
-    return () => { unsubForum(); unsubAnggota(); };
+
+    return () => { 
+       unsubForum(); 
+       unsubAnggota(); 
+    };
   }, [kelasAktif]);
 
   const daftarSiswaUnikMap = new Map();
@@ -109,27 +123,18 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   
   const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
 
-  // 👈 POIN 3: PERINGKAT DENGAN TIE-BREAKER DURASI
   const rekapRapor = daftarSiswaUnik.map(siswa => {
-      let totalSkor = 0;
-      let totalDurasi = 0;
-      const nilaiPerUjian = {};
-      ujianKelasIni.forEach(ujian => {
-         const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
-         const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
-         const durasi = setoranSiswa ? (setoranSiswa.waktuPengerjaan || 0) : 0;
-         nilaiPerUjian[ujian.docId] = skor;
-         totalSkor += skor;
-         totalDurasi += durasi;
-      });
-      return { ...siswa, nilaiPerUjian, totalSkor, totalDurasi };
+     let totalSkor = 0;
+     const nilaiPerUjian = {};
+     ujianKelasIni.forEach(ujian => {
+        const setoranSiswa = setoranKelasIni.find(s => s.email === siswa.email && s.idUjian === ujian.docId);
+        const skor = setoranSiswa ? setoranSiswa.nilaiSistem : 0;
+        nilaiPerUjian[ujian.docId] = skor;
+        totalSkor += skor;
+     });
+     return { ...siswa, nilaiPerUjian, totalSkor };
   });
-
-  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua
-  rekapRapor.sort((a, b) => {
-     if (b.totalSkor !== a.totalSkor) return b.totalSkor - a.totalSkor;
-     return a.totalDurasi - b.totalDurasi;
-  });
+  rekapRapor.sort((a, b) => b.totalSkor - a.totalSkor);
 
   const unduhExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -273,11 +278,20 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   };
 
-  const keluarkanSiswa = async (emailSiswa) => {
-     if(window.confirm(`Keluarkan ${emailSiswa} dari kelas ini?\n\nSiswa tersebut masih bisa masuk kembali dengan mengetik Kode Kelas Anda.`)) {
+  const keluarkanSiswaBulk = async (emailSiswa, namaSiswa) => {
+     const pesan = `⚠️ PERINGATAN: Hapus permanen ${namaSiswa} dari kelas ${kelasAktif}?\n\nSistem juga akan MENGHAPUS SEMUA NILAI dan SETORAN TUGAS siswa ini secara otomatis!`;
+
+     if(window.confirm(pesan)) {
         try {
-           await deleteDoc(doc(db, "anggota", `${kelasAktif}_${emailSiswa.toLowerCase()}`));
-           alert("✅ Siswa berhasil dikeluarkan dari absensi kelas.");
+           const batch = writeBatch(db);
+           batch.delete(doc(db, "anggota", `${kelasAktif}_${emailSiswa.toLowerCase()}`));
+
+           const q = query(collection(db, "setoran"), where("email", "==", emailSiswa.toLowerCase()), where("kodeHalaqah", "==", kelasAktif));
+           const snap = await getDocs(q);
+           snap.forEach(d => batch.delete(d.ref));
+
+           await batch.commit();
+           alert("✅ Siswa dan seluruh data nilainya berhasil dibersihkan!");
         } catch(e) { 
            alert("Gagal mengeluarkan siswa."); 
         }
@@ -299,8 +313,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   };
 
   const [editUjianId, setEditUjianId] = useState(null);
+  
+  // 👈 TAMBAHKAN PROPERTY NAVIGASI KETAT DI STATE
   const [formUjian, setFormUjian] = useState({
-     judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10
+     judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
 
   const handleBuatUjian = async (e) => {
@@ -324,7 +340,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            setUjianAktifAdmin(docRef.id);
            alert("✅ Jadwal Ujian Berhasil Dibuat!");
         }
-        setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 });
+        setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10 });
      } catch(err) { 
         alert("❌ Gagal menyimpan ujian."); 
      }
@@ -339,6 +355,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         tipeTarget: ujian.tipeTarget || 'semua', 
         targetSiswa: ujian.targetSiswa || '', 
         kunciLayar: ujian.kunciLayar || false, 
+        navigasiKetat: ujian.navigasiKetat || false, // 👈 LOAD PENGATURAN LAMA
         poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
@@ -349,7 +366,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         await deleteDoc(doc(db, "ujian", docId));
         if(editUjianId === docId) {
            setEditUjianId(null);
-           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 });
+           setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10 });
         }
      }
   };
@@ -703,8 +720,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
          <button onClick={keLogin} className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all">🚪 Log Out</button>
       </div>
 
-      {/* MENU TAB ADMIN */}
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 border-b border-slate-200 dark:border-slate-700 no-print transition-colors">
+      {/* MENU TAB ADMIN (TAMPIL DI ATAS UNTUK DESKTOP, SEMBUNYI DI HP) */}
+      <div className="hidden md:flex gap-2 overflow-x-auto pb-4 mb-6 border-b border-slate-200 dark:border-slate-700 no-print transition-colors">
           <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm shrink-0 transition-all ${tabAdmin === 'buat' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>➕ Buat Jadwal & Soal</button>
           <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm shrink-0 transition-all ${tabAdmin === 'forum' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>💬 Forum Kelas</button>
           <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`px-4 py-2 font-bold rounded-lg text-sm shrink-0 transition-all ${tabAdmin === 'koreksi' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>✅ Evaluasi ({setoranTampil.length})</button>
@@ -749,7 +766,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
             <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[50vh] transition-colors">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                   <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">🏆 Papan Peringkat Kelas</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">* Jika skor sama, diurutkan berdasarkan durasi tercepat</p>
                </div>
                
                {rekapRapor.length === 0 ? (
@@ -766,13 +782,10 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                               </span>
                               <div>
                                  <p className="font-bold text-slate-800 dark:text-white">{m.nama}</p>
-                                 <p className="text-[10px] font-bold text-indigo-400 mt-0.5">⏱️ Total Waktu: {formatWaktuTampil(m.totalDurasi)}</p>
+                                 <p className="text-[10px] text-slate-400">{m.email}</p>
                               </div>
                            </div>
-                           <div className="text-right">
-                              <span className="text-2xl font-black text-emerald-500 block leading-none">{m.totalSkor}</span>
-                              <span className="text-[8px] font-black text-slate-400 uppercase">Poin</span>
-                           </div>
+                           <span className="text-2xl font-black text-emerald-500">{m.totalSkor}</span>
                         </div>
                      ))}
                   </div>
@@ -867,7 +880,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                     <td className="p-4 font-black text-center text-emerald-500 text-lg border-l border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/10">{siswa.totalSkor}</td>
                                     <td className="p-4 text-center">
                                        <div className="flex gap-2 justify-center">
-                                          <button onClick={() => keluarkanSiswa(siswa.email)} className="bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Keluarkan</button>
+                                          <button onClick={() => keluarkanSiswaBulk(siswa.email, siswa.nama)} className="bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Keluarkan</button>
                                           <button onClick={() => blokirAkun(siswa.email)} className="bg-red-100 text-red-600 hover:bg-red-500 hover:text-white text-[10px] font-bold px-3 py-2 rounded-lg transition-colors">Blokir Permanen</button>
                                        </div>
                                     </td>
@@ -1132,7 +1145,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                <div className={`p-6 rounded-3xl shadow-lg border-2 transition-colors ${editUjianId ? 'bg-yellow-900 border-yellow-500' : 'bg-orange-800 dark:bg-orange-900 border-transparent dark:border-orange-700'}`}>
                   <div className="flex justify-between items-center mb-2">
                      <h2 className="text-sm font-black text-white">{editUjianId ? '✏️ Edit Jadwal Ujian' : '2. Jadwalkan Ujian untuk Kelas Aktif'}</h2>
-                     {editUjianId && <button type="button" onClick={() => {setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, poinBenar: 10 });}} className="text-xs text-red-300 hover:text-red-100 underline">Batal Edit</button>}
+                     {editUjianId && <button type="button" onClick={() => {setEditUjianId(null); setFormUjian({ judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10 });}} className="text-xs text-red-300 hover:text-red-100 underline">Batal Edit</button>}
                   </div>
                   
                   <form onSubmit={handleBuatUjian} className="space-y-3 mb-4">
@@ -1195,6 +1208,15 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
+                     {/* 👈 CHECKBOX BARU: NAVIGASI KETAT */}
+                     <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
+                        <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
+                        <div className="flex flex-col">
+                           <span className={`text-xs font-black uppercase ${editUjianId ? 'text-yellow-100' : 'text-orange-100'}`}>➡️ Navigasi Ketat (Wajib Jawab)</span>
+                           <span className={`text-[9px] font-medium ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Siswa tidak bisa melewati soal sebelum mengisi jawaban.</span>
+                        </div>
+                     </label>
+
                      <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-4 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
                         {editUjianId ? '🔄 Update Jadwal Ujian' : 'Buat Jadwal Ujian'}
                      </button>
@@ -1210,6 +1232,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                 <div className="flex items-center gap-2">
                                    <p className="text-white font-bold text-xs">{u.judul}</p>
                                    {u.kunciLayar && <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Ketat</span>}
+                                   {u.navigasiKetat && <span className="bg-indigo-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase ml-1">Urut</span>}
                                 </div>
                                 <p className={`text-[10px] ${editUjianId === u.docId ? 'text-yellow-400' : 'text-orange-400'}`}>{u.durasi} Mnt • Poin: {u.poinBenar || 10}</p>
                              </div>
@@ -1318,7 +1341,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      )}
 
                      {form.tipe === 'isian' && (
-                       <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800 transition-colors">
+                       <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 transition-colors">
                          <label className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-2 block">Kunci Jawaban Isian (Pisahkan dengan koma jika ada variasi jawaban)</label>
                          <input type="text" name="kunci" value={Array.isArray(form.kunci) ? '' : form.kunci} onChange={(e) => setForm({...form, kunci: e.target.value})} dir={form.bahasa === 'ar' ? 'rtl' : 'ltr'} className="w-full p-3 bg-white dark:bg-slate-700 dark:text-white rounded-xl outline-none font-bold text-slate-700 border border-emerald-200 dark:border-emerald-700 focus:ring-2 ring-emerald-400 transition-colors" placeholder="Contoh: 17 Agustus 1945, 17-8-1945, 17 agustus 45" />
                        </div>
@@ -1362,6 +1385,30 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                </div>
              </div>
            </div>
+         )}
+      </div>
+
+      {/* MENU TAB ADMIN (MOBILE - BOTTOM NAV) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-safe z-50 flex justify-around p-2 no-print shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+         <button onClick={() => {setTabAdmin('buat'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'buat' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 scale-105' : 'text-slate-400 hover:text-indigo-500'}`}>
+            <span className="text-2xl mb-1 leading-none">📝</span><span className="text-[9px] font-black uppercase">Jadwal</span>
+         </button>
+         <button onClick={() => {setTabAdmin('forum'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'forum' ? 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 scale-105' : 'text-slate-400 hover:text-sky-500'}`}>
+            <span className="text-2xl mb-1 leading-none">💬</span><span className="text-[9px] font-black uppercase">Forum</span>
+         </button>
+         <button onClick={() => {setTabAdmin('koreksi'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'koreksi' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 scale-105' : 'text-slate-400 hover:text-orange-500'}`}>
+            <span className="text-2xl mb-1 leading-none">✅</span><span className="text-[9px] font-black uppercase">Koreksi</span>
+         </button>
+         <button onClick={() => {setTabAdmin('rapor'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'rapor' ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 scale-105' : 'text-slate-400 hover:text-teal-500'}`}>
+            <span className="text-2xl mb-1 leading-none">📊</span><span className="text-[9px] font-black uppercase">Siswa</span>
+         </button>
+         <button onClick={() => {setTabAdmin('peringkat'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'peringkat' ? 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 scale-105' : 'text-slate-400 hover:text-yellow-500'}`}>
+            <span className="text-2xl mb-1 leading-none">🏆</span><span className="text-[9px] font-black uppercase">Rank</span>
+         </button>
+         {isSuperAdmin && (
+            <button onClick={() => {setTabAdmin('guru'); setSetoranTerpilih(null);}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${tabAdmin === 'guru' ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 scale-105' : 'text-slate-400 hover:text-purple-500'}`}>
+               <span className="text-2xl mb-1 leading-none">👥</span><span className="text-[9px] font-black uppercase">Guru</span>
+            </button>
          )}
       </div>
 

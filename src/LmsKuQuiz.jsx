@@ -26,7 +26,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // 👈 STATE BARU UNTUK PENGACAK GANDA (OPSI & NOMOR SOAL)
   const [shuffledOptionsMap, setShuffledOptionsMap] = useState({});
   const [shuffledIndices, setShuffledIndices] = useState([]);
 
@@ -42,19 +41,19 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
   const poinSet = Number(ujianAktif.poinBenar) || 10;
 
-  // 👈 MESIN PENGACAK GANDA FISHER-YATES (Dijalankan 1x saat ujian dimuat)
+  // 👈 CEK STATUS NAVIGASI DARI PENGATURAN GURU
+  const isNavigasiKetat = ujianAktif.navigasiKetat === true;
+
   useEffect(() => {
      if (soalUjianIni.length > 0 && Object.keys(shuffledOptionsMap).length === 0) {
         const mapAcak = {};
         
-        // 1. Mengacak Urutan Nomor Soal
         const indices = soalUjianIni.map((_, idx) => idx);
         for (let i = indices.length - 1; i > 0; i--) {
            const j = Math.floor(Math.random() * (i + 1));
            [indices[i], indices[j]] = [indices[j], indices[i]];
         }
 
-        // 2. Mengacak Opsi Jawaban Pilihan Ganda
         soalUjianIni.forEach((s, idx) => {
            if (s.tipe && s.tipe.startsWith('pilihan')) {
               const arr = [s.opsiA, s.opsiB, s.opsiC, s.opsiD, s.opsiE].filter(Boolean);
@@ -148,7 +147,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      }
   };
 
-  // 👈 RUMUS ILUSI VISUAL: Menerjemahkan soal yang tampil ke index asli database
   const getActualIndex = () => shuffledIndices.length > 0 ? shuffledIndices[currentQuestionIndex] : currentQuestionIndex;
 
   const handlePilihMulti = (opsi) => {
@@ -211,7 +209,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
 
   const stopRecordingUraian = () => { if (mediaRecorderRef.current) { mediaRecorderRef.current.stop(); setIsRecording(false); } };
 
-  // 👈 SAAT SUBMIT, KITA MENGHITUNG MENGGUNAKAN ARRAY ASLI AGAR KOREKSI GURU TIDAK ERROR
   const submitTugas = async (isAutoSubmit = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -289,22 +286,24 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
            <h1 className="text-3xl font-black mb-2 dark:text-white">{ujianAktif.judul}</h1>
            <p className="text-slate-500 dark:text-slate-400 font-bold mb-4">Waktu Ujian: {ujianAktif.durasi} Menit</p>
            
-           {ujianAktif.kunciLayar ? (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
-                 <p className="text-xs font-black text-red-600 dark:text-red-400 uppercase mb-2 flex items-center gap-2"><span>🔒</span> Ujian Ketat Diaktifkan:</p>
-                 <ul className="text-sm text-red-800 dark:text-red-300 font-medium space-y-2 list-disc pl-4">
-                    <li>Layar akan terkunci di mode Fullscreen.</li>
-                    <li>Sistem akan melacak jika Anda membuka tab atau aplikasi lain.</li>
-                    <li><strong>Maksimal 1 kali pelanggaran.</strong> Pelanggaran kedua akan mengumpulkan ujian otomatis.</li>
+           {ujianAktif.kunciLayar && (
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-5 rounded-2xl mb-4 text-left shadow-inner transition-colors">
+                 <p className="text-xs font-black text-red-600 dark:text-red-400 uppercase mb-2 flex items-center gap-2"><span>🔒</span> Ujian Ketat:</p>
+                 <ul className="text-[11px] text-red-800 dark:text-red-300 font-medium space-y-1 list-disc pl-4">
+                    <li>Layar terkunci Fullscreen. Dilarang buka tab lain.</li>
                  </ul>
               </div>
-           ) : (
+           )}
+
+           {ujianAktif.navigasiKetat ? (
               <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
-                 <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase mb-3 flex items-center gap-2"><span>⚠️</span> Tata Tertib Ujian:</p>
-                 <ul className="text-sm text-indigo-900 dark:text-indigo-300 font-medium space-y-2 list-disc pl-4">
-                    <li>Sistem otomatis mengumpulkan jawaban jika waktu habis.</li>
-                    <li>Pastikan koneksi internet stabil sebelum mulai.</li>
-                 </ul>
+                 <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase mb-2 flex items-center gap-2"><span>➡️</span> Wajib Berurutan:</p>
+                 <p className="text-[11px] text-indigo-900 dark:text-indigo-300 font-medium">Anda harus mengisi jawaban pada soal saat ini sebelum bisa melangkah ke soal berikutnya.</p>
+              </div>
+           ) : (
+              <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 p-5 rounded-2xl mb-8 text-left shadow-inner transition-colors">
+                 <p className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase mb-2 flex items-center gap-2"><span>🔄</span> Bebas Melompat:</p>
+                 <p className="text-[11px] text-emerald-900 dark:text-emerald-300 font-medium">Anda bebas melewati soal yang sulit dan kembali lagi nanti sebelum waktu habis.</p>
               </div>
            )}
 
@@ -503,7 +502,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
 
   const formatWaktuHitungMundur = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   
-  // 👈 PEMBACA SOAL BERDASARKAN ILUSI (ACAK)
   const actualIndex = getActualIndex();
   const soal = soalUjianIni[actualIndex];
   const isArab = soal?.bahasa === 'ar';
@@ -513,15 +511,33 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const izin = soal?.izinUraian || { teks: true, gambar: true, suara: true };
   const jwbUraian = (soal?.tipe === 'uraian' && jawabanPeserta[actualIndex]) ? jawabanPeserta[actualIndex] : { teks: '', gambar: null, suara: null };
 
+  // 👈 CEK STATUS PENGERJAAN SOAL UNTUK NAVIGASI KETAT
+  const isSoalTerjawab = () => {
+     if (!soal) return false;
+     const jawabanDiLayarIni = jawabanPeserta[actualIndex];
+     
+     if (soal.tipe === 'pilihan_ganda') return !!jawabanDiLayarIni;
+     if (soal.tipe === 'pilihan_ganda_kompleks') return Array.isArray(jawabanDiLayarIni) && jawabanDiLayarIni.length > 0;
+     if (soal.tipe === 'isian') return typeof jawabanDiLayarIni === 'string' && jawabanDiLayarIni.trim() !== '';
+     if (soal.tipe === 'uraian') return !!(jawabanDiLayarIni?.teks?.trim() || jawabanDiLayarIni?.gambar || jawabanDiLayarIni?.suara);
+     return false;
+  };
+  
+  // Jika Navigasi Ketat = TRUE, tombol lanjut hanya aktif jika soal sudah dijawab
+  const bolehLanjut = ujianAktif.navigasiKetat ? isSoalTerjawab() : true;
+
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-8 font-sans">
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm mb-4 flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-colors">
+    <div className="max-w-3xl mx-auto p-4 md:p-8 font-sans pb-32">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-md mb-6 flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-colors sticky top-4 z-50">
         <div>
            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{ujianAktif.judul}</p>
            <p className="font-black text-slate-700 dark:text-white text-sm">{user.nama}</p>
-           <p className="text-[10px] text-indigo-400 dark:text-indigo-300 font-bold truncate max-w-[150px]">{user.email}</p>
         </div>
-        <div className={`px-4 py-2 rounded-xl font-mono font-bold shadow-inner ${timeLeft <= 60 ? 'bg-red-500 text-white animate-pulse' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>{formatWaktuHitungMundur(timeLeft)}</div>
+        
+        <div className={`flex flex-col items-center px-4 py-1 rounded-xl font-mono font-bold border-2 transition-all ${timeLeft <= 60 ? 'bg-red-50 border-red-500 text-red-600 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white shadow-inner'}`}>
+           <span className="text-[8px] uppercase tracking-widest leading-none mb-1 opacity-60">Sisa Waktu</span>
+           <span className="text-xl leading-none">{formatWaktuHitungMundur(timeLeft)}</span>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-slate-100 dark:border-slate-700 min-h-[50vh] flex flex-col transition-colors">
@@ -562,7 +578,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                   <button key={index} onClick={() => soal.tipe === 'pilihan_ganda_kompleks' ? handlePilihMulti(opsi) : setJawabanPeserta({...jawabanPeserta, [actualIndex]: opsi})}
                     className={`w-full flex items-center p-3 md:p-4 rounded-2xl transition-all text-left border-2 ${isArab ? 'flex-row-reverse text-right' : ''} ${isSelected ? 'bg-indigo-500 text-white border-indigo-700 shadow-md' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-slate-100 dark:border-slate-600 hover:border-indigo-200 dark:hover:border-indigo-500'}`}
                   >
-                    <span className={`font-black ${isSelected ? 'text-indigo-200' : 'text-slate-300 dark:text-slate-400'} ${isArab ? 'ml-3' : 'mr-3'}`}>{isArab ? abjadArab[index] : abjadId[index]}.</span>
+                    <span className={`w-10 h-10 rounded-xl flex justify-center items-center font-black ${isSelected ? 'bg-indigo-700 text-indigo-100 shadow-inner' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'} ${isArab ? 'ml-3' : 'mr-3'}`}>{isArab ? abjadArab[index] : abjadId[index]}</span>
                     <span className={`flex-grow font-semibold ${isArab ? 'teks-arab-besar leading-none' : 'text-sm md:text-base'}`} dir={isArab ? 'rtl' : 'ltr'}>{renderTeks(opsi)}</span>
                   </button>
                 )
@@ -605,14 +621,26 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
           )}
         </div>
 
+        {/* 👈 TOMBOL NAVIGASI DENGAN PROTEKSI (WAJIB JAWAB JIKA DIAKTIFKAN GURU) */}
         <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between gap-3 transition-colors no-print">
-          <button onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))} className={`px-4 py-3 font-bold rounded-xl text-sm transition-all ${currentQuestionIndex === 0 ? 'text-slate-300 dark:text-slate-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>← Kembali</button>
+          <button onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))} className={`px-4 py-3 font-bold rounded-xl text-sm transition-all ${currentQuestionIndex === 0 ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>← Kembali</button>
+          
           {currentQuestionIndex === soalUjianIni.length - 1 ? (
-            <button onClick={() => submitTugas(false)} disabled={isSubmitting} className="flex-1 max-w-[200px] py-3 bg-emerald-500 text-white font-black rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all shadow-lg">
-              {isSubmitting ? 'Mengirim Data...' : 'Kumpulkan'}
+            <button 
+              onClick={() => submitTugas(false)} 
+              disabled={isSubmitting || !bolehLanjut} 
+              className={`flex-1 max-w-[200px] py-3 text-white font-black rounded-xl border-b-4 transition-all shadow-lg ${!bolehLanjut ? 'bg-slate-300 border-slate-400 dark:bg-slate-700 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed' : 'bg-emerald-500 border-emerald-700 active:border-b-0 active:translate-y-1 hover:bg-emerald-600'}`}
+            >
+              {isSubmitting ? 'Mengirim...' : (!bolehLanjut ? 'Isi Jawaban Dulu' : 'Kumpulkan')}
             </button>
           ) : (
-            <button onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)} className="flex-1 max-w-[200px] py-3 bg-indigo-500 text-white font-black rounded-xl border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all shadow-lg">Lanjut →</button>
+            <button 
+               onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)} 
+               disabled={!bolehLanjut}
+               className={`flex-1 max-w-[200px] py-3 text-white font-black rounded-xl border-b-4 transition-all shadow-lg ${!bolehLanjut ? 'bg-slate-300 border-slate-400 dark:bg-slate-700 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed' : (ujianAktif.navigasiKetat ? 'Lanjut →' : (isSoalTerjawab() ? 'Lanjut →' : 'Lewati →'))}`}
+            >
+               {!bolehLanjut ? 'Isi Jawaban Dulu' : (ujianAktif.navigasiKetat ? 'Lanjut →' : (isSoalTerjawab() ? 'Lanjut →' : 'Lewati →'))}
+            </button>
           )}
         </div>
       </div>
