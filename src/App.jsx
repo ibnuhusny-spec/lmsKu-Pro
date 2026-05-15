@@ -224,7 +224,7 @@ function App() {
         {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={handleLogoutGmail} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
         
         {/* LOBI MURID */}
-        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} updateNama={handleUpdateNamaSiswa} />}
+{halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} bankSoal={bankSoal} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} updateNama={handleUpdateNamaSiswa} />}
         
         {/* UJIAN MURID */}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
