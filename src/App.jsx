@@ -3,7 +3,7 @@ import LmsKuLobi from './LmsKuLobi';
 import LmsKuQuiz from './LmsKuQuiz';
 import LmsKuAdmin from './LmsKuAdmin';
 import { db, auth, googleProvider } from './firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore'; 
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 function App() {
@@ -21,11 +21,18 @@ function App() {
   const SUPER_ADMIN = 'ibnuhusny@gmail.com';
 
   useEffect(() => {
+    // FUNGSI AUTO-CLEAR CACHE (ANTI-BENTROK KODE KELAS LAMA)
     const params = new URLSearchParams(window.location.search);
-    const kelasDariLink = params.get('kelas');
+    const kelasDariLink = params.get('kelas')?.toUpperCase();
+    
     if (kelasDariLink) {
-       sessionStorage.setItem('temp_kelas', kelasDariLink.toUpperCase());
-       setKodeUndangan(kelasDariLink.toUpperCase());
+       const sesiLama = JSON.parse(localStorage.getItem('lmsku_sesi_siswa'));
+       if (sesiLama && sesiLama.kodeHalaqah !== kelasDariLink) {
+          localStorage.removeItem('lmsku_sesi_siswa');
+          setUser(null);
+       }
+       sessionStorage.setItem('temp_kelas', kelasDariLink);
+       setKodeUndangan(kelasDariLink);
     } else {
        const savedKelas = sessionStorage.getItem('temp_kelas');
        if (savedKelas) setKodeUndangan(savedKelas);
@@ -81,6 +88,18 @@ function App() {
     return () => { unsubSoal(); unsubSetoran(); unsubUjian(); unsubPengaturan(); unsubAuth(); };
   }, []);
 
+  // FUNGSI GANTI NAMA MANDIRI
+  const handleUpdateNamaSiswa = async (namaBaru) => {
+     if (!user) return;
+     try {
+        await updateDoc(doc(db, "anggota", `${user.kodeHalaqah}_${user.email}`), { nama: namaBaru });
+        const userUpdate = { ...user, nama: namaBaru };
+        setUser(userUpdate);
+        localStorage.setItem('lmsku_sesi_siswa', JSON.stringify(userUpdate));
+        alert("✅ Nama berhasil diperbarui!");
+     } catch (e) { alert("Gagal update nama."); }
+  };
+
   const handleLoginSiswa = async () => {
     try { 
        await signInWithPopup(auth, googleProvider); 
@@ -107,18 +126,15 @@ function App() {
      } catch (error) { alert("Gagal Admin: " + error.message); }
   };
 
-  // INI ADALAH KUNCI UTAMA LOGOUT GOOGLE
   const handleLogoutGmail = () => { 
      localStorage.removeItem('lmsku_sesi_siswa'); 
      sessionStorage.removeItem('temp_kelas');
-     signOut(auth); 
-     setGoogleUser(null); 
-     setHalaman('splash'); 
+     signOut(auth); setGoogleUser(null); setHalaman('splash'); 
   };
 
   const handleKeluarKelas = async (isPermanen = false) => {
      if (isPermanen && user) {
-        if(window.confirm("Yakin ingin keluar dari kelas ini secara permanen?\nData absen Anda di kelas ini akan terhapus.")) {
+        if(window.confirm("Yakin ingin keluar dari kelas ini secara permanen?\nData Anda akan dihapus.")) {
            try { await deleteDoc(doc(db, "anggota", `${user.kodeHalaqah}_${user.email}`)); } catch(e) {}
         } else { return; }
      }
@@ -149,7 +165,7 @@ function App() {
   return (
     <div translate="no" className={`notranslate ${isDarkMode ? 'dark' : ''} transition-colors duration-500`}>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans relative">
-        <button onClick={toggleTheme} className="absolute top-4 right-4 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur p-3 rounded-full shadow-lg border border-slate-200 dark:border-slate-700">
+        <button onClick={toggleTheme} className="absolute top-4 right-4 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur p-3 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 no-print">
            {isDarkMode ? '☀️' : '🌙'}
         </button>
 
@@ -186,8 +202,6 @@ function App() {
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl w-full max-w-sm border-t-8 border-indigo-500 transition-colors">
               <button onClick={() => setHalaman('splash')} className="text-slate-400 font-bold text-xs mb-6 block">← Kembali</button>
               <form onSubmit={handleMasukRuangan} className="space-y-4">
-                 
-                 {/* PERBAIKAN 1: KOTAK EMAIL MURID DENGAN TOMBOL GANTI AKUN */}
                  <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800 flex justify-between items-center gap-2">
                     <div className="overflow-hidden">
                        <p className="text-[10px] font-black text-indigo-400 uppercase">Akun Google:</p>
@@ -195,7 +209,6 @@ function App() {
                     </div>
                     <button type="button" onClick={handleLogoutGmail} className="shrink-0 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold px-3 py-2 rounded-lg hover:bg-red-200 transition-colors">Ganti</button>
                  </div>
-
                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Nama Lengkap</label>
                  <input name="nama" defaultValue={getNamaDefault()} placeholder="Nama Lengkap" required className="w-full p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold border border-transparent" />
                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
@@ -208,11 +221,10 @@ function App() {
           </div>
         )}
 
-        {/* PERBAIKAN 2: MENGUBAH PROP KELOGIN ADMIN AGAR BENAR-BENAR LOGOUT GOOGLE */}
         {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={handleLogoutGmail} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
         
         {/* LOBI MURID */}
-        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} />}
+        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} updateNama={handleUpdateNamaSiswa} />}
         
         {/* UJIAN MURID */}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
