@@ -876,14 +876,16 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                   {/* 👈 FITUR PERBAIKAN: Form Kelola Guru dengan Controlled Input & Tahan Paste Blocker */}
                   <form onSubmit={tambahGuru} className="flex flex-col md:flex-row gap-3 mb-8">
                      <input 
-                        type="email" 
-                        value={inputGuruBaru}
-                        onChange={(e) => setInputGuruBaru(e.target.value)}
-                        onPaste={(e) => e.stopPropagation()} 
-                        placeholder="Contoh: guru1@gmail.com" 
-                        required 
-                        className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" 
-                     />
+   type="email" 
+   value={inputGuruBaru}
+   onChange={(e) => setInputGuruBaru(e.target.value)}
+   onPaste={(e) => e.stopPropagation()} 
+   onContextMenu={(e) => e.stopPropagation()} 
+   onKeyDown={(e) => e.stopPropagation()} 
+   placeholder="Contoh: guru1@gmail.com" 
+   required 
+   className="flex-1 p-4 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-2xl outline-none font-bold text-sm border border-slate-200 dark:border-slate-600 focus:ring-2 ring-purple-400 transition-colors" 
+/>
                      <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-black px-6 py-4 rounded-2xl transition-colors shadow-lg active:scale-95 text-sm md:text-base">Daftarkan</button>
                   </form>
 
