@@ -66,7 +66,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   const daftarHalaqahAman = Array.isArray(pengaturan?.daftarHalaqah) ? pengaturan.daftarHalaqah : [];
   const daftarBlokirAman = Array.isArray(pengaturan?.daftarBlokir) ? pengaturan.daftarBlokir : []; 
   
-  // 👈 LOGIKA FILTER: BACA SEMUA EMAIL GURU DI DALAM ARRAY/STRING
   const halaqahMilikGuru = isSuperAdmin 
     ? daftarHalaqahAman 
     : daftarHalaqahAman.filter(h => h.emailGuru && h.emailGuru.toLowerCase().includes(emailAdmin.toLowerCase()));
@@ -347,6 +346,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const [editUjianId, setEditUjianId] = useState(null);
   
+  // 👈 FITUR KEMBALI: MENAMBAHKAN navigasiKetat
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
@@ -387,7 +387,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
         tipeTarget: ujian.tipeTarget || 'semua', 
         targetSiswa: ujian.targetSiswa || '', 
         kunciLayar: ujian.kunciLayar || false, 
-        navigasiKetat: ujian.navigasiKetat || false, 
+        navigasiKetat: ujian.navigasiKetat || false, // Mengambil data lama saat klik Edit
         poinBenar: ujian.poinBenar || 10
      });
      setEditUjianId(ujian.docId);
@@ -613,7 +613,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      alert(`✅ Teks undangan WhatsApp Pintar berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
   };
 
-  // 👈 FITUR TAMBAH GURU PENDAMPING YANG BARU
+  // 👈 FITUR KEMBALI: GURU PENDAMPING
   const tambahGuruPendamping = async (kodeHalaqah) => {
       const emailBaruRaw = prompt("👥 MASUKKAN EMAIL GURU PENDAMPING:\n(Pastikan email ini sudah diotorisasi oleh Super Admin di tab 'Kelola Guru')");
       if (!emailBaruRaw) return;
@@ -1187,10 +1187,8 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                              <div className="flex justify-between items-start mb-2">
                                 <div>
                                    <p className="text-white font-bold text-xs">{h.nama}</p>
-                                   {/* 👈 TAMPILAN EMAIL GURU TERDAFTAR */}
-                                   <p className="text-[9px] text-emerald-300 font-medium truncate max-w-[150px] md:max-w-[200px]" title={h.emailGuru}>
-                                      👨‍🏫 {h.emailGuru || 'Belum ada guru'}
-                                   </p>
+                                   {/* 👈 FITUR TAMPILAN EMAIL GURU TERDAFTAR */}
+                                   <p className="text-[10px] text-emerald-300 mt-1">👨‍🏫 Guru: <span className="font-medium text-[9px]">{h.emailGuru}</span></p>
                                 </div>
                                 <button onClick={() => hapusHalaqah(h.kode)} className="text-emerald-400 hover:text-red-400 font-bold text-xs transition-colors">✕ Hapus</button>
                              </div>
@@ -1274,6 +1272,15 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
+                     {/* 👈 FITUR CHECKBOX NAVIGASI KETAT DIKEMBALIKAN */}
+                     <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
+                        <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
+                        <div className="flex flex-col">
+                           <span className={`text-xs font-black uppercase ${editUjianId ? 'text-yellow-100' : 'text-orange-100'}`}>➡️ Navigasi Ketat (Wajib Jawab)</span>
+                           <span className={`text-[9px] font-medium ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Siswa tidak bisa melewati soal sebelum mengisi jawaban.</span>
+                        </div>
+                     </label>
+
                      <button type="submit" className={`w-full py-3 text-white font-black rounded-xl transition-colors text-sm shadow-md mt-4 ${editUjianId ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-orange-500 hover:bg-orange-400'}`}>
                         {editUjianId ? '🔄 Update Jadwal Ujian' : 'Buat Jadwal Ujian'}
                      </button>
@@ -1289,6 +1296,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                                 <div className="flex items-center gap-2">
                                    <p className="text-white font-bold text-xs">{u.judul}</p>
                                    {u.kunciLayar && <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Ketat</span>}
+                                   {/* 👈 TAMPILAN LABEL NAVIGASI KETAT */}
                                    {u.navigasiKetat && <span className="bg-indigo-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase ml-1">Urut</span>}
                                 </div>
                                 <p className={`text-[10px] ${editUjianId === u.docId ? 'text-yellow-400' : 'text-orange-400'}`}>{u.durasi} Mnt • Poin: {u.poinBenar || 10}</p>
