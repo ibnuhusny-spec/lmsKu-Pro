@@ -613,7 +613,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      alert(`✅ Teks undangan WhatsApp Pintar berhasil disalin!\nSilakan buka WA dan "Paste/Tempel" ke grup murid Anda.`);
   };
 
-  // 👈 POIN 3: FITUR TAMBAH GURU PENDAMPING
+  // 👈 FITUR TAMBAH GURU PENDAMPING YANG BARU
   const tambahGuruPendamping = async (kodeHalaqah) => {
       const emailBaruRaw = prompt("👥 MASUKKAN EMAIL GURU PENDAMPING:\n(Pastikan email ini sudah diotorisasi oleh Super Admin di tab 'Kelola Guru')");
       if (!emailBaruRaw) return;
@@ -1184,8 +1184,14 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                      ) : (
                         halaqahMilikGuru.map((h, i) => (
                           <div key={i} className="flex flex-col bg-emerald-950 p-3 rounded-xl border border-emerald-700">
-                             <div className="flex justify-between items-center mb-2">
-                                <p className="text-white font-bold text-xs">{h.nama}</p>
+                             <div className="flex justify-between items-start mb-2">
+                                <div>
+                                   <p className="text-white font-bold text-xs">{h.nama}</p>
+                                   {/* 👈 TAMPILAN EMAIL GURU TERDAFTAR */}
+                                   <p className="text-[9px] text-emerald-300 font-medium truncate max-w-[150px] md:max-w-[200px]" title={h.emailGuru}>
+                                      👨‍🏫 {h.emailGuru || 'Belum ada guru'}
+                                   </p>
+                                </div>
                                 <button onClick={() => hapusHalaqah(h.kode)} className="text-emerald-400 hover:text-red-400 font-bold text-xs transition-colors">✕ Hapus</button>
                              </div>
                              <div className="flex flex-wrap items-center gap-2">
@@ -1265,14 +1271,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         <div className="flex flex-col">
                            <span className={`text-xs font-black uppercase ${editUjianId ? 'text-yellow-100' : 'text-orange-100'}`}>🔒 Mode Ujian Ketat</span>
                            <span className={`text-[9px] font-medium ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Kunci Fullscreen & Lacak Tab Keluar (Auto-Submit)</span>
-                        </div>
-                     </label>
-
-                     <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
-                        <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
-                        <div className="flex flex-col">
-                           <span className={`text-xs font-black uppercase ${editUjianId ? 'text-yellow-100' : 'text-orange-100'}`}>➡️ Navigasi Ketat (Wajib Jawab)</span>
-                           <span className={`text-[9px] font-medium ${editUjianId ? 'text-yellow-300' : 'text-orange-300'}`}>Siswa tidak bisa melewati soal sebelum mengisi jawaban.</span>
                         </div>
                      </label>
 
