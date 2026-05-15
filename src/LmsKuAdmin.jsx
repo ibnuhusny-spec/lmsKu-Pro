@@ -119,18 +119,43 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
   }, [kelasAktif]);
 
 
-  // 👈 LOGIKA KEBAL PELURU (BULLETPROOF) UNTUK REKAP RAPOR & PERINGKAT
+  // 👈 LOGIKA KEBAL PELURU (BULLETPROOF) UNTUK REKAP RAPOR & NAMA
   const daftarSiswaUnikMap = new Map();
   
-  // Mengamankan huruf besar/kecil dan spasi berlebih
+  // 1. Prioritaskan data Anggota (Daftar Absensi/Input Manual/Edit Pensil)
   semuaAnggota.forEach(a => {
-     if (a.email) daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { email: a.email, nama: a.nama || 'Siswa' });
+     if (a.email) {
+        daftarSiswaUnikMap.set(a.email.toLowerCase().trim(), { 
+           email: a.email, 
+           nama: a.nama || 'Siswa' 
+        });
+     }
   });
+
+  // 2. Jika di daftar absensi belum ada, ATAU namanya masih pakai email (mengandung @),
+  // kita timpa dengan nama dari form Setoran Ujian (yang biasanya lebih valid).
   setoranKelasIni.forEach(s => {
-     if (s.email) daftarSiswaUnikMap.set(s.email.toLowerCase().trim(), { email: s.email, nama: s.nama || 'Siswa' });
+     if (s.email) {
+        const emailKey = s.email.toLowerCase().trim();
+        const dataLama = daftarSiswaUnikMap.get(emailKey);
+        
+        if (!dataLama || (dataLama.nama.includes('@') && s.nama && !s.nama.includes('@'))) {
+           daftarSiswaUnikMap.set(emailKey, { 
+              email: s.email, 
+              nama: s.nama || (dataLama ? dataLama.nama : s.email.split('@')[0]) 
+           });
+        }
+     }
   });
+
+  // 3. Tambahkan dari forum hanya jika benar-benar belum terdata sama sekali
   semuaPesan.filter(p => p.peran === 'siswa').forEach(p => {
-     if (p.email) daftarSiswaUnikMap.set(p.email.toLowerCase().trim(), { email: p.email, nama: p.nama || 'Siswa' });
+     if (p.email) {
+        const emailKey = p.email.toLowerCase().trim();
+        if (!daftarSiswaUnikMap.has(emailKey)) {
+           daftarSiswaUnikMap.set(emailKey, { email: p.email, nama: p.nama || 'Siswa' });
+        }
+     }
   });
 
   const daftarSiswaUnik = Array.from(daftarSiswaUnikMap.values());
@@ -158,7 +183,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
       return { ...siswa, nilaiPerUjian, totalSkor, totalDurasi };
   });
 
-  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua (Ini akan memunculkan murid 100 dengan tepat)
+  // Urutkan: Skor Tertinggi Utama, Durasi Tercepat Kedua
   rekapRapor.sort((a, b) => {
      if (b.totalSkor !== a.totalSkor) return b.totalSkor - a.totalSkor;
      return a.totalDurasi - b.totalDurasi;
@@ -307,7 +332,6 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
      }
   };
 
-  // ONE-CLICK HAPUS SEMUA
   const keluarkanSiswaBulk = async (emailSiswa, namaSiswa) => {
      const pesan = `⚠️ PERINGATAN: Hapus permanen ${namaSiswa} dari kelas ${kelasAktif}?\n\nSistem juga akan MENGHAPUS SEMUA NILAI dan SETORAN TUGAS siswa ini secara otomatis!`;
 
@@ -316,7 +340,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
            const batch = writeBatch(db);
            batch.delete(doc(db, "anggota", `${kelasAktif}_${emailSiswa.toLowerCase()}`));
 
-           const q = query(collection(db, "setoran"), where("email", "==", emailSiswa), where("kodeHalaqah", "==", kelasAktif));
+           const q = query(collection(db, "setoran"), where("email", "==", emailSiswa.toLowerCase()), where("kodeHalaqah", "==", kelasAktif));
            const snap = await getDocs(q);
            snap.forEach(d => batch.delete(d.ref));
 
@@ -344,6 +368,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
 
   const [editUjianId, setEditUjianId] = useState(null);
   
+  // 👈 TAMBAHKAN PROPERTI NAVIGASI KETAT DI STATE
   const [formUjian, setFormUjian] = useState({
      judul: '', durasi: 60, waktuMulai: '', waktuSelesai: '', tipeTarget: 'semua', targetSiswa: '', kunciLayar: false, navigasiKetat: false, poinBenar: 10
   });
@@ -1236,6 +1261,7 @@ const LmsKuAdmin = ({ bankSoal, setoran, pengaturan, daftarUjian, keLogin, email
                         </div>
                      </label>
 
+                     {/* 👈 CHECKBOX NAVIGASI KETAT */}
                      <label className={`flex items-center gap-3 cursor-pointer mt-2 p-3 rounded-xl border border-dashed ${editUjianId ? 'bg-yellow-900/30 border-yellow-400' : 'bg-orange-900/30 border-orange-400'} hover:bg-black/20 transition-colors`}>
                         <input type="checkbox" checked={formUjian.navigasiKetat || false} onChange={e=>setFormUjian({...formUjian, navigasiKetat: e.target.checked})} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
                         <div className="flex flex-col">
