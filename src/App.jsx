@@ -3,7 +3,7 @@ import LmsKuLobi from './LmsKuLobi';
 import LmsKuQuiz from './LmsKuQuiz';
 import LmsKuAdmin from './LmsKuAdmin';
 import { db, auth, googleProvider } from './firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore'; 
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, query, where, getDocs } from 'firebase/firestore'; 
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 function App() {
@@ -122,6 +122,7 @@ function App() {
     } catch (error) { alert("Gagal Login: " + error.message); }
   };
 
+  // 👈 INI DIA PENJAGA GERBANG YANG SUDAH KEBAL PELURU (ANTI TYPO)
   const handleMasukAdmin = async () => {
      try {
         let currentUser = googleUser;
@@ -130,23 +131,20 @@ function App() {
            currentUser = result.user;
         }
         
-        // 1. Amankan email yang baru masuk (ubah ke huruf kecil dan buang spasi)
         const emailLogin = currentUser.email.toLowerCase().trim();
         const superAdminAman = SUPER_ADMIN.toLowerCase().trim();
-        
-        // 2. Amankan semua isi brankas daftar guru (ubah ke huruf kecil semua)
-        const daftarGuruAman = (pengaturan?.daftarGuru || []).map(email => email.toLowerCase().trim());
+        const daftarGuruAman = (pengaturan?.daftarGuru || []).map(e => e.toLowerCase().trim());
 
-        // 3. Bandingkan dengan adil
         const isSuperAdmin = emailLogin === superAdminAman;
         const isGuruTerdaftar = daftarGuruAman.includes(emailLogin);
 
-        if (isSuperAdmin || isGuruTerdaftar) setHalaman('admin'); 
-        else {
-           alert(`⛔ AKSES DITOLAK!\n\nEmail Google Anda (${currentUser.email}) belum diberi izin masuk ke Panel Guru.\nSilakan hubungi Super Admin untuk didaftarkan.`);
+        if (isSuperAdmin || isGuruTerdaftar) {
+           setHalaman('admin'); 
+        } else {
+           alert(`⛔ AKSES DITOLAK!\n\nEmail (${emailLogin}) belum didaftarkan sebagai Guru.\nSilakan hubungi Super Admin.`);
            signOut(auth); setGoogleUser(null);
         }
-     } catch (error) { alert("Gagal Masuk Admin: " + error.message); }
+     } catch (error) { alert("Gagal Admin: " + error.message); }
   };
 
   const handleLogoutGmail = () => { 
@@ -247,7 +245,7 @@ function App() {
         {halaman === 'admin' && <LmsKuAdmin bankSoal={bankSoal} setoran={setoran} pengaturan={pengaturan} daftarUjian={daftarUjian} keLogin={handleLogoutGmail} emailAdmin={googleUser.email} superAdmin={SUPER_ADMIN} />}
         
         {/* LOBI MURID */}
-{halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} bankSoal={bankSoal} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} updateNama={handleUpdateNamaSiswa} />}
+        {halaman === 'lobi' && <LmsKuLobi user={user} pengaturan={pengaturan} daftarUjian={daftarUjian} setoran={setoran} bankSoal={bankSoal} keUjian={(ujian) => {setUjianAktif(ujian); setHalaman('ujian');}} keLogin={handleKeluarKelas} updateNama={handleUpdateNamaSiswa} />}
         
         {/* UJIAN MURID */}
         {halaman === 'ujian' && <LmsKuQuiz bankSoal={bankSoal} user={user} setoran={setoran} ujianAktif={ujianAktif} keLobi={() => setHalaman('lobi')} />}
