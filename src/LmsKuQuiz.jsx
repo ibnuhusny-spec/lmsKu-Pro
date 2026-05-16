@@ -41,7 +41,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const adaUraian = soalUjianIni.some(s => s.tipe === 'uraian');
   const poinSet = Number(ujianAktif.poinBenar) || 10;
 
-  // 👈 CEK STATUS NAVIGASI DARI PENGATURAN GURU
   const isNavigasiKetat = ujianAktif.navigasiKetat === true;
 
   useEffect(() => {
@@ -464,7 +463,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
                         </div>
                         <div className={soal.bahasa === 'ar' ? 'text-right' : 'text-left'} dir={soal.bahasa === 'ar' ? 'rtl' : 'ltr'}>
                           <p className="font-bold text-slate-700 dark:text-white text-base">{renderTeks(soal.teksSoal)}</p>
-                          {soal.teksTambahanArab && <p className="teks-arab-besar text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
+                          {soal.teksTambahanArab && <p className="teks-arab-besar text-right text-indigo-900 dark:text-indigo-300 mt-2" dir="rtl">{soal.teksTambahanArab}</p>}
                           {soal.mediaSoalGambar && <img src={soal.mediaSoalGambar} className="h-20 mt-2 rounded border dark:border-slate-600" />}
                         </div>
                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -511,7 +510,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
   const izin = soal?.izinUraian || { teks: true, gambar: true, suara: true };
   const jwbUraian = (soal?.tipe === 'uraian' && jawabanPeserta[actualIndex]) ? jawabanPeserta[actualIndex] : { teks: '', gambar: null, suara: null };
 
-  // 👈 CEK STATUS PENGERJAAN SOAL UNTUK NAVIGASI KETAT
   const isSoalTerjawab = () => {
      if (!soal) return false;
      const jawabanDiLayarIni = jawabanPeserta[actualIndex];
@@ -523,7 +521,6 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
      return false;
   };
   
-  // Jika Navigasi Ketat = TRUE, tombol lanjut hanya aktif jika soal sudah dijawab
   const bolehLanjut = ujianAktif.navigasiKetat ? isSoalTerjawab() : true;
 
   return (
@@ -621,7 +618,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
           )}
         </div>
 
-        {/* 👈 TOMBOL NAVIGASI DENGAN PROTEKSI (WAJIB JAWAB JIKA DIAKTIFKAN GURU) */}
+        {/* 👈 TOMBOL NAVIGASI DENGAN WARNA TAILWIND YANG UTUH */}
         <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between gap-3 transition-colors no-print">
           <button onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))} className={`px-4 py-3 font-bold rounded-xl text-sm transition-all ${currentQuestionIndex === 0 ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>← Kembali</button>
           
@@ -637,7 +634,7 @@ const LmsKuQuiz = ({ bankSoal, user, setoran, ujianAktif, keLobi }) => {
             <button 
                onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)} 
                disabled={!bolehLanjut}
-               className={`flex-1 max-w-[200px] py-3 text-white font-black rounded-xl border-b-4 transition-all shadow-lg ${!bolehLanjut ? 'bg-slate-300 border-slate-400 dark:bg-slate-700 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed' : (ujianAktif.navigasiKetat ? 'Lanjut →' : (isSoalTerjawab() ? 'Lanjut →' : 'Lewati →'))}`}
+               className={`flex-1 max-w-[200px] py-3 font-black rounded-xl border-b-4 transition-all shadow-lg ${!bolehLanjut ? 'bg-slate-300 border-slate-400 dark:bg-slate-700 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed text-white' : 'bg-indigo-500 hover:bg-indigo-600 border-indigo-700 active:border-b-0 active:translate-y-1 text-white'}`}
             >
                {!bolehLanjut ? 'Isi Jawaban Dulu' : (ujianAktif.navigasiKetat ? 'Lanjut →' : (isSoalTerjawab() ? 'Lanjut →' : 'Lewati →'))}
             </button>
