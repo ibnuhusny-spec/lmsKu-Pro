@@ -3,7 +3,8 @@ import LmsKuLobi from './LmsKuLobi';
 import LmsKuQuiz from './LmsKuQuiz';
 import LmsKuAdmin from './LmsKuAdmin';
 import { db, auth, googleProvider } from './firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, query, where, getDocs } from 'firebase/firestore'; 
+// 👈 PERHATIKAN: Saya menambahkan 'getDoc' di baris ini
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, query, where, getDocs, getDoc } from 'firebase/firestore'; 
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 function App() {
@@ -88,21 +89,17 @@ function App() {
     return () => { unsubSoal(); unsubSetoran(); unsubUjian(); unsubPengaturan(); unsubAuth(); };
   }, []);
 
-  // FUNGSI GANTI NAMA MANDIRI
   const handleUpdateNamaSiswa = async (namaBaru) => {
     if (!namaBaru.trim()) return;
     
-    // 1. Update layar murid saat ini
     const userBaru = { ...user, nama: namaBaru };
     setUser(userBaru);
     localStorage.setItem('lms_user', JSON.stringify(userBaru));
 
     try {
-      // 2. Update di Buku Absen (Tabel Anggota)
       const idAnggota = `${user.kodeHalaqah}_${user.email.toLowerCase()}`;
       await setDoc(doc(db, "anggota", idAnggota), { nama: namaBaru }, { merge: true });
 
-      // 3. Menyelam ke database dan ubah nama di SEMUA riwayat ujian anak ini
       const q = query(collection(db, "setoran"), where("email", "==", user.email), where("kodeHalaqah", "==", user.kodeHalaqah));
       const snap = await getDocs(q);
       snap.forEach(async (d) => {
@@ -122,7 +119,7 @@ function App() {
     } catch (error) { alert("Gagal Login: " + error.message); }
   };
 
-  // 👈 INI DIA PENJAGA GERBANG YANG SUDAH KEBAL PELURU (ANTI TYPO)
+  // 👈 PERBAIKAN TOTAL: Jemput Paksa Data Guru Langsung dari Database!
   const handleMasukAdmin = async () => {
      try {
         let currentUser = googleUser;
@@ -133,7 +130,16 @@ function App() {
         
         const emailLogin = currentUser.email.toLowerCase().trim();
         const superAdminAman = SUPER_ADMIN.toLowerCase().trim();
-        const daftarGuruAman = (pengaturan?.daftarGuru || []).map(e => e.toLowerCase().trim());
+
+        // JURUS PAMUNGKAS: Ambil data langsung dari server detik ini juga
+        const docRef = doc(db, "sistem", "pengaturan");
+        const docSnap = await getDoc(docRef);
+        let daftarGuruAman = [];
+
+        if (docSnap.exists()) {
+           const dataPengaturan = docSnap.data();
+           daftarGuruAman = (dataPengaturan.daftarGuru || []).map(e => e.toLowerCase().trim());
+        }
 
         const isSuperAdmin = emailLogin === superAdminAman;
         const isGuruTerdaftar = daftarGuruAman.includes(emailLogin);
@@ -141,10 +147,10 @@ function App() {
         if (isSuperAdmin || isGuruTerdaftar) {
            setHalaman('admin'); 
         } else {
-           alert(`⛔ AKSES DITOLAK!\n\nEmail (${emailLogin}) belum didaftarkan sebagai Guru.\nSilakan hubungi Super Admin.`);
+           alert(`⛔ AKSES DITOLAK!\n\nEmail Anda (${emailLogin}) belum didaftarkan sebagai Guru di sistem.\nSilakan hubungi Super Admin.`);
            signOut(auth); setGoogleUser(null);
         }
-     } catch (error) { alert("Gagal Admin: " + error.message); }
+     } catch (error) { alert("Gagal Masuk Admin: " + error.message); }
   };
 
   const handleLogoutGmail = () => { 
